@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  pharmaforge-os:
+    container_name: pharmaforge_os_production
+    build: .
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./frontend:/code/frontend
+      - ./app:/code/app
+    restart: always
