@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<epcis:EPCISDocument xmlns:epcis="urn:epcglobal:epcis:xsd:1"
+                     xmlns:cbvmda="urn:epcglobal:cbv:mda"
+                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                     schemaVersion="1.2"
+                     creationDate="2024-12-20T10:00:00Z">
+  <EPCISBody>
+    <EventList>
+      <!-- ObjectEvent: Commissioning - Products enter the supply chain -->
+      <ObjectEvent>
+        <eventTime>2024-12-20T09:00:00.000Z</eventTime>
+        <eventTimeZoneOffset>-05:00</eventTimeZoneOffset>
+        <epcList>
+          <epc>urn:epc:id:sgtin:0614141.107346.2001</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.2002</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.2003</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.2004</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.2005</epc>
+        </epcList>
+        <action>ADD</action>
+        <bizStep>urn:epcglobal:cbv:bizstep:commissioning</bizStep>
+        <disposition>urn:epcglobal:cbv:disp:active</disposition>
+        <readPoint>
+          <id>urn:epc:id:sgln:0614141.00002.0</id>
+        </readPoint>
+        <bizLocation>
+          <id>urn:epc:id:sgln:0614141.00002.0</id>
+        </bizLocation>
+      </ObjectEvent>
+      
+      <!-- ObjectEvent: Packing - Products are packed into shipping container -->
+      <ObjectEvent>
+        <eventTime>2024-12-20T11:30:00.000Z</eventTime>
+        <eventTimeZoneOffset>-05:00</eventTimeZoneOffset>
+        <epcList>
+          <epc>urn:epc:id:sgtin:0614141.107346.2001</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.2002</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.2003</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.2004</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.2005</epc>
+        </epcList>
+        <action>OBSERVE</action>
+        <bizStep>urn:epcglobal:cbv:bizstep:packing</bizStep>
+        <disposition>urn:epcglobal:cbv:disp:in_progress</disposition>
+        <readPoint>
+          <id>urn:epc:id:sgln:0614141.00002.0</id>
+        </readPoint>
+        <bizLocation>
+          <id>urn:epc:id:sgln:0614141.00002.0</id>
+        </bizLocation>
+      </ObjectEvent>
+      
+      <!-- ObjectEvent: Shipping - Container leaves the facility -->
+      <ObjectEvent>
+        <eventTime>2024-12-21T08:00:00.000Z</eventTime>
+        <eventTimeZoneOffset>-05:00</eventTimeZoneOffset>
+        <epcList>
+          <epc>urn:epc:id:sscc:0614141.0987654321</epc>
+        </epcList>
+        <action>OBSERVE</action>
+        <bizStep>urn:epcglobal:cbv:bizstep:shipping</bizStep>
+        <disposition>urn:epcglobal:cbv:disp:in_transit</disposition>
+        <readPoint>
+          <id>urn:epc:id:sgln:0614141.00002.0</id>
+        </readPoint>
+        <sourceList>
+          <source type="urn:epcglobal:cbv:sdt:owning_party">urn:epc:id:sgln:0614141.00002.0</source>
+        </sourceList>
+        <destinationList>
+          <destination type="urn:epcglobal:cbv:sdt:owning_party">urn:epc:id:sgln:0099999.00001.0</destination>
+        </destinationList>
+      </ObjectEvent>
+    </EventList>
+  </EPCISBody>
+</epcis:EPCISDocument>

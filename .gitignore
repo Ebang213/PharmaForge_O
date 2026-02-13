@@ -1,0 +1,169 @@
+# =============================================
+# PharmaForge OS - .gitignore
+# =============================================
+# SECURITY: This file prevents secrets, tokens,
+# credentials, and sensitive files from being
+# committed to the repository.
+# =============================================
+
+# =============================================
+# 🔐 SECRETS & CREDENTIALS (CRITICAL)
+# =============================================
+.env
+.env.*
+!.env.example
+!.env.production.example
+_auth_token.txt
+.auth_token.txt
+*.key
+*.pem
+*.crt
+*.cert
+*.pfx
+*.p12
+*.jks
+*.keystore
+
+# API keys / tokens that may be saved locally
+**/secrets/
+**/credentials/
+*.secret
+*.secrets
+*.credential
+*.credentials
+
+# =============================================
+# Python
+# =============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.virtualenvs/
+Pipfile.lock
+
+# =============================================
+# Node.js / Frontend
+# =============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm/
+.yarn/
+
+# Frontend build output
+frontend/dist/
+frontend/build/
+frontend/.vite/
+
+# =============================================
+# Testing & Coverage
+# =============================================
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+.hypothesis/
+*.cover
+coverage.xml
+nosetests.xml
+*.lcov
+
+# =============================================
+# IDE & Editor
+# =============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+.classpath
+
+# =============================================
+# OS Generated
+# =============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+nul
+
+# =============================================
+# Database
+# =============================================
+*.db
+*.sqlite
+*.sqlite3
+
+# =============================================
+# Docker (local volumes & overrides)
+# =============================================
+docker-compose.override.yml
+
+# =============================================
+# Logs
+# =============================================
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# =============================================
+# Uploads & Runtime Data
+# =============================================
+uploads/
+backups/
+*.backup
+*.bak
+tmp/
+temp/
+*.tmp
+*.temp
+
+# =============================================
+# Alembic compiled migrations
+# =============================================
+app/db/migrations/versions/*.pyc
+
+# =============================================
+# Misc
+# =============================================
+*.orig
+*.rej
+*.patch

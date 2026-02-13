@@ -1,75 +1,125 @@
-import uvicorn
-from fastapi import FastAPI
+"""
+PharmaForge OS - Main FastAPI Application
+Operating System for Virtual Pharma
+"""
+import os
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
-import requests
-from typing import List, Optional
+from fastapi.responses import JSONResponse
 
-app = FastAPI(title="PharmaForge OS")
+from app.core.config import settings
+from app.core.logging import setup_logging, get_logger
+from app.db.session import init_db
 
+# Setup logging
+setup_logging()
+logger = get_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events."""
+    logger.info("Starting PharmaForge OS...")
+    
+    # Initialize database
+    try:
+        init_db()
+        logger.info("Database initialized")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+    
+    # Create upload directories
+    os.makedirs(os.path.join(settings.UPLOAD_DIR, "epcis"), exist_ok=True)
+    os.makedirs(os.path.join(settings.UPLOAD_DIR, "documents"), exist_ok=True)
+    
+    yield
+    
+    logger.info("Shutting down PharmaForge OS...")
+
+
+# Create FastAPI app
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description="Operating System for Virtual Pharma - Supply Chain, Compliance & Regulatory Intelligence",
+    lifespan=lifespan,
+)
+
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-class Shortage(BaseModel):
-    generic_name: str
-    company_name: str
-    status: str
-    reason: Optional[str] = "Unknown"
 
-class ScanResult(BaseModel):
-    is_valid: bool
-    product_name: str
-    serial_number: str
-    lot_number: str
-    expiry_date: str
-    message: str
+# Import and include routers
+from app.api.auth import router as auth_router
+from app.api.orgs import router as orgs_router
+from app.api.vendors import router as vendors_router
+from app.api.watchtower import router as watchtower_router
+from app.api.dscsa import router as dscsa_router
+from app.api.copilot import router as copilot_router
+from app.api.war_council import router as war_council_router
+from app.api.audit import router as audit_router
+from app.api.sourcing import router as sourcing_router
+from app.api.admin import router as admin_router
+from app.api.evidence import router as evidence_router
+from app.api.risk_findings import router as risk_findings_router
 
-@app.get("/api/shortages", response_model=List[Shortage])
-def get_fda_shortages(limit: int = 10):
-    try:
-        url = "https://api.fda.gov/drug/shortages.json"
-        params = {'limit': limit, 'search': 'status:"Current"'}
-        response = requests.get(url, params=params, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        results = []
-        for item in data.get('results', []):
-            results.append(Shortage(
-                generic_name=item.get('generic_name', 'UNKNOWN'),
-                company_name=item.get('company_name', 'UNKNOWN'),
-                status=item.get('status', 'Current'),
-                reason=item.get('reason_for_shortage', 'Not specified')
-            ))
-        return results
-    except Exception as e:
-        print(f"Error fetching FDA data: {e}")
-        return [
-            Shortage(generic_name="AMOXICILLIN", company_name="Sandoz", status="Current", reason="Demand Increase"),
-            Shortage(generic_name="ADDERALL", company_name="Teva", status="Current", reason="API Shortage")
-        ]
+app.include_router(auth_router)
+app.include_router(orgs_router)
+app.include_router(vendors_router)
+app.include_router(watchtower_router)
+app.include_router(dscsa_router)
+app.include_router(copilot_router)
+app.include_router(war_council_router)
+app.include_router(audit_router)
+app.include_router(sourcing_router)
+app.include_router(admin_router)
+app.include_router(evidence_router)
+app.include_router(risk_findings_router)
 
-@app.post("/api/scan", response_model=ScanResult)
-def verify_dscsa_scan(barcode_data: dict):
-    return ScanResult(
-        is_valid=True,
-        product_name="Lisinopril 10mg Tablets",
-        serial_number="1029384756",
-        lot_number="B455-22",
-        expiry_date="2026-11-27",
-        message="Authenticated by PharmaForge OS."
+
+# Health check endpoint
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "app": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+    }
+
+
+# Error handlers
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler with CORS headers."""
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+
+    # Get the origin from request headers for CORS
+    origin = request.headers.get("origin", "")
+
+    # Build CORS headers if origin is allowed
+    headers = {}
+    if origin and origin in settings.CORS_ORIGINS:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+        headers=headers,
     )
 
-app.mount("/frontend", StaticFiles(directory="frontend"), name="static")
 
-@app.get("/")
-async def read_index():
-    return FileResponse('frontend/index.html')
-
+# Run with uvicorn
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

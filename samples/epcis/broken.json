@@ -1,0 +1,46 @@
+{
+    "epcisBody": {
+        "eventList": [
+            {
+                "type": "ObjectEvent",
+                "action": "OBSERVE",
+                "bizStep": "urn:epcglobal:cbv:bizstep:shipping",
+                "epcList": [
+                    "urn:epc:id:sgtin:0614141.107346.2001",
+                    "urn:epc:id:sgtin:0614141.107346.2002"
+                ]
+            },
+            {
+                "type": "ObjectEvent",
+                "eventTime": "2024-12-10T08:00:00.000Z",
+                "action": "ADD",
+                "bizStep": "urn:epcglobal:cbv:bizstep:commissioning",
+                "epcList": []
+            },
+            {
+                "type": "InvalidEventType",
+                "eventTime": "2024-12-11T10:00:00.000Z",
+                "action": "ADD",
+                "epcList": [
+                    "invalid-epc-format"
+                ]
+            },
+            {
+                "type": "ObjectEvent",
+                "eventTime": "2024-12-09T10:00:00.000Z",
+                "action": "DELETE",
+                "epcList": [
+                    "urn:epc:id:sgtin:0614141.107346.2001"
+                ]
+            },
+            {
+                "type": "ObjectEvent",
+                "eventTime": "2024-12-12T14:00:00.000Z",
+                "action": "OBSERVE",
+                "epcList": [
+                    "urn:epc:id:sgtin:0614141.107346.2001"
+                ]
+            }
+        ]
+    }
+}

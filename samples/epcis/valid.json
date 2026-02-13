@@ -1,0 +1,104 @@
+{
+    "epcisBody": {
+        "eventList": [
+            {
+                "type": "ObjectEvent",
+                "eventTime": "2024-12-15T10:30:00.000Z",
+                "eventTimeZoneOffset": "-05:00",
+                "action": "ADD",
+                "bizStep": "urn:epcglobal:cbv:bizstep:commissioning",
+                "disposition": "urn:epcglobal:cbv:disp:active",
+                "readPoint": {
+                    "id": "urn:epc:id:sgln:0614141.00001.0"
+                },
+                "bizLocation": {
+                    "id": "urn:epc:id:sgln:0614141.00001.0"
+                },
+                "epcList": [
+                    "urn:epc:id:sgtin:0614141.107346.1001",
+                    "urn:epc:id:sgtin:0614141.107346.1002",
+                    "urn:epc:id:sgtin:0614141.107346.1003"
+                ]
+            },
+            {
+                "type": "ObjectEvent",
+                "eventTime": "2024-12-16T14:00:00.000Z",
+                "eventTimeZoneOffset": "-05:00",
+                "action": "OBSERVE",
+                "bizStep": "urn:epcglobal:cbv:bizstep:packing",
+                "disposition": "urn:epcglobal:cbv:disp:in_progress",
+                "readPoint": {
+                    "id": "urn:epc:id:sgln:0614141.00001.0"
+                },
+                "bizLocation": {
+                    "id": "urn:epc:id:sgln:0614141.00001.0"
+                },
+                "epcList": [
+                    "urn:epc:id:sgtin:0614141.107346.1001",
+                    "urn:epc:id:sgtin:0614141.107346.1002",
+                    "urn:epc:id:sgtin:0614141.107346.1003"
+                ]
+            },
+            {
+                "type": "AggregationEvent",
+                "eventTime": "2024-12-16T15:00:00.000Z",
+                "eventTimeZoneOffset": "-05:00",
+                "action": "ADD",
+                "bizStep": "urn:epcglobal:cbv:bizstep:packing",
+                "disposition": "urn:epcglobal:cbv:disp:in_progress",
+                "parentID": "urn:epc:id:sscc:0614141.1234567890",
+                "readPoint": {
+                    "id": "urn:epc:id:sgln:0614141.00001.0"
+                },
+                "childEPCs": [
+                    "urn:epc:id:sgtin:0614141.107346.1001",
+                    "urn:epc:id:sgtin:0614141.107346.1002",
+                    "urn:epc:id:sgtin:0614141.107346.1003"
+                ]
+            },
+            {
+                "type": "ObjectEvent",
+                "eventTime": "2024-12-17T09:00:00.000Z",
+                "eventTimeZoneOffset": "-05:00",
+                "action": "OBSERVE",
+                "bizStep": "urn:epcglobal:cbv:bizstep:shipping",
+                "disposition": "urn:epcglobal:cbv:disp:in_transit",
+                "readPoint": {
+                    "id": "urn:epc:id:sgln:0614141.00001.0"
+                },
+                "epcList": [
+                    "urn:epc:id:sscc:0614141.1234567890"
+                ],
+                "sourceList": [
+                    {
+                        "type": "urn:epcglobal:cbv:sdt:owning_party",
+                        "source": "urn:epc:id:sgln:0614141.00001.0"
+                    }
+                ],
+                "destinationList": [
+                    {
+                        "type": "urn:epcglobal:cbv:sdt:owning_party",
+                        "destination": "urn:epc:id:sgln:0012345.00001.0"
+                    }
+                ]
+            },
+            {
+                "type": "ObjectEvent",
+                "eventTime": "2024-12-18T11:00:00.000Z",
+                "eventTimeZoneOffset": "-05:00",
+                "action": "OBSERVE",
+                "bizStep": "urn:epcglobal:cbv:bizstep:receiving",
+                "disposition": "urn:epcglobal:cbv:disp:in_progress",
+                "readPoint": {
+                    "id": "urn:epc:id:sgln:0012345.00001.0"
+                },
+                "bizLocation": {
+                    "id": "urn:epc:id:sgln:0012345.00001.0"
+                },
+                "epcList": [
+                    "urn:epc:id:sscc:0614141.1234567890"
+                ]
+            }
+        ]
+    }
+}

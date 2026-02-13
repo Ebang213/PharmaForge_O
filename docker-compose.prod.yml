@@ -1,0 +1,251 @@
+# Production Docker Compose - Single Entry Point via NGINX
+# Run with: docker-compose -f docker-compose.prod.yml up --build
+
+services:
+  # ============================================
+  # Database Layer
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: pharmaforge_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pharmaforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pharmaforge_prod}
+      POSTGRES_DB: ${POSTGRES_DB:-pharmaforge}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pharmaforge_network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pharmaforge} -d ${POSTGRES_DB:-pharmaforge}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # Cache Layer
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: pharmaforge_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - pharmaforge_network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # Vector Database
+  # ============================================
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: pharmaforge_qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - pharmaforge_network
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # FastAPI Backend
+  # ============================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pharmaforge-api:${VERSION:-latest}
+    container_name: pharmaforge_api
+    restart: unless-stopped
+    environment:
+      # Application
+      APP_NAME: "PharmaForge OS"
+      APP_VERSION: ${VERSION:-1.0.0}
+      DEBUG: ${DEBUG:-false}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-random-64-chars}
+
+      # =========================================
+      # Database Configuration (Single Source of Truth)
+      # =========================================
+      # These MUST match the postgres service above.
+      # NOTE: Changing POSTGRES_PASSWORD does NOT update the existing
+      # postgres_data volume! You must either:
+      #   - Run: docker-compose down -v (destroys data)
+      #   - Run: scripts/rotate-db-password.ps1 (preserves data)
+      # =========================================
+      POSTGRES_USER: ${POSTGRES_USER:-pharmaforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pharmaforge_prod}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-pharmaforge}
+
+      # Redis - uses service name 'redis' as hostname
+      REDIS_URL: redis://redis:6379/0
+
+      # Vector DB - uses service name 'qdrant' as hostname
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      QDRANT_COLLECTION: pharmaforge_docs
+
+      # LLM Providers
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+      # Storage
+      UPLOAD_DIR: /code/uploads
+      MAX_UPLOAD_SIZE: 104857600
+
+      # CORS - allow both prod nginx and dev frontend
+      CORS_ORIGINS: '["http://localhost", "http://localhost:80", "http://localhost:5173", "http://127.0.0.1"]'
+
+      # =========================================
+      # Auth Hardening (Production Settings)
+      # =========================================
+      SEED_DEMO: ${SEED_DEMO:-false}
+      ALLOW_PUBLIC_REGISTRATION: ${ALLOW_PUBLIC_REGISTRATION:-false}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+
+      # Admin bootstrap - set these in .env for first admin user
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+    volumes:
+      - uploads_data:/code/uploads
+    networks:
+      - pharmaforge_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://127.0.0.1:8000/api/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ============================================
+  # Background Worker (No HTTP healthcheck needed)
+  # ============================================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pharmaforge-api:${VERSION:-latest}
+    container_name: pharmaforge_worker
+    restart: unless-stopped
+    command: python -m app.workers.worker
+    environment:
+      # Database - same vars as API service
+      POSTGRES_USER: ${POSTGRES_USER:-pharmaforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pharmaforge_prod}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-pharmaforge}
+      # Other services
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-random-64-chars}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - uploads_data:/code/uploads
+    networks:
+      - pharmaforge_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Worker has no HTTP endpoint - use redis ping as health check
+    healthcheck:
+      test: [ "CMD-SHELL", "python -c \"import redis; r=redis.from_url('redis://redis:6379/0'); r.ping()\" || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ============================================
+  # NGINX - Single Entry Point (Port 80)
+  # ============================================
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    image: pharmaforge-nginx:${VERSION:-latest}
+    container_name: pharmaforge_nginx
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    networks:
+      - pharmaforge_network
+    depends_on:
+      api:
+        condition: service_healthy
+    # Healthcheck - curl is installed in Dockerfile
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sf http://localhost/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+# ============================================
+# Networks - All services on same network
+# ============================================
+networks:
+  pharmaforge_network:
+    driver: bridge
+
+# ============================================
+# Persistent Volumes
+# ============================================
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
+  uploads_data:

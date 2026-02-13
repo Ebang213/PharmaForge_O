@@ -1,0 +1,43 @@
+FDA Guidance for Industry
+Drug Supply Chain Security Act (DSCSA) Implementation
+
+SAMPLE DOCUMENT FOR TESTING RAG INGESTION
+
+1. Introduction
+The Drug Supply Chain Security Act (DSCSA), enacted on November 27, 2013, outlines critical steps to build an electronic, interoperable system to identify and trace certain prescription drugs as they are distributed in the United States.
+
+2. Key Requirements
+2.1 Product Identification
+- Unique product identifier (serial number, lot number, expiration date, NDC)
+- Human-readable and machine-readable formats
+- Compliance with GS1 standards
+
+2.2 Transaction Information
+Trading partners must provide transaction information including:
+- Product name and strength
+- NDC number
+- Container size
+- Number of containers
+- Lot number
+- Transaction date
+- Shipment date
+- Name and address of parties
+
+2.3 Verification Requirements
+- Respond to verification requests within 24 hours
+- Verify product identifier upon receipt
+- Investigate suspect and illegitimate products
+
+3. Implementation Timeline
+- November 2023: Full interoperability requirements
+- Package-level serialization required
+- Electronic transaction information and statements
+
+4. Compliance Recommendations
+Companies should:
+- Implement robust serialization systems
+- Establish verification procedures
+- Maintain transaction records for 6 years
+- Train personnel on DSCSA requirements
+
+This is a sample document for testing purposes only.

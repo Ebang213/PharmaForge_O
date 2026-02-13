@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<epcis:EPCISDocument xmlns:epcis="urn:epcglobal:epcis:xsd:1"
+                     xmlns:cbvmda="urn:epcglobal:cbv:mda"
+                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                     schemaVersion="1.2"
+                     creationDate="2024-12-22T14:00:00Z">
+  <EPCISBody>
+    <EventList>
+      <!-- AggregationEvent: Packing individual units into a case -->
+      <AggregationEvent>
+        <eventTime>2024-12-22T09:00:00.000Z</eventTime>
+        <eventTimeZoneOffset>-05:00</eventTimeZoneOffset>
+        <parentID>urn:epc:id:sscc:0614141.1111111111</parentID>
+        <childEPCs>
+          <epc>urn:epc:id:sgtin:0614141.107346.3001</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.3002</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.3003</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.3004</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.3005</epc>
+          <epc>urn:epc:id:sgtin:0614141.107346.3006</epc>
+        </childEPCs>
+        <action>ADD</action>
+        <bizStep>urn:epcglobal:cbv:bizstep:packing</bizStep>
+        <disposition>urn:epcglobal:cbv:disp:in_progress</disposition>
+        <readPoint>
+          <id>urn:epc:id:sgln:0614141.00003.0</id>
+        </readPoint>
+        <bizLocation>
+          <id>urn:epc:id:sgln:0614141.00003.0</id>
+        </bizLocation>
+      </AggregationEvent>
+      
+      <!-- AggregationEvent: Packing cases into a pallet -->
+      <AggregationEvent>
+        <eventTime>2024-12-22T10:30:00.000Z</eventTime>
+        <eventTimeZoneOffset>-05:00</eventTimeZoneOffset>
+        <parentID>urn:epc:id:sscc:0614141.2222222222</parentID>
+        <childEPCs>
+          <epc>urn:epc:id:sscc:0614141.1111111111</epc>
+          <epc>urn:epc:id:sscc:0614141.1111111112</epc>
+          <epc>urn:epc:id:sscc:0614141.1111111113</epc>
+          <epc>urn:epc:id:sscc:0614141.1111111114</epc>
+        </childEPCs>
+        <action>ADD</action>
+        <bizStep>urn:epcglobal:cbv:bizstep:packing</bizStep>
+        <disposition>urn:epcglobal:cbv:disp:in_progress</disposition>
+        <readPoint>
+          <id>urn:epc:id:sgln:0614141.00003.0</id>
+        </readPoint>
+        <bizLocation>
+          <id>urn:epc:id:sgln:0614141.00003.0</id>
+        </bizLocation>
+      </AggregationEvent>
+      
+      <!-- AggregationEvent: Unpacking at receiving -->
+      <AggregationEvent>
+        <eventTime>2024-12-24T11:00:00.000Z</eventTime>
+        <eventTimeZoneOffset>-05:00</eventTimeZoneOffset>
+        <parentID>urn:epc:id:sscc:0614141.2222222222</parentID>
+        <childEPCs>
+          <epc>urn:epc:id:sscc:0614141.1111111111</epc>
+          <epc>urn:epc:id:sscc:0614141.1111111112</epc>
+          <epc>urn:epc:id:sscc:0614141.1111111113</epc>
+          <epc>urn:epc:id:sscc:0614141.1111111114</epc>
+        </childEPCs>
+        <action>DELETE</action>
+        <bizStep>urn:epcglobal:cbv:bizstep:unpacking</bizStep>
+        <disposition>urn:epcglobal:cbv:disp:in_progress</disposition>
+        <readPoint>
+          <id>urn:epc:id:sgln:0099999.00001.0</id>
+        </readPoint>
+        <bizLocation>
+          <id>urn:epc:id:sgln:0099999.00001.0</id>
+        </bizLocation>
+      </AggregationEvent>
+    </EventList>
+  </EPCISBody>
+</epcis:EPCISDocument>
