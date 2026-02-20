@@ -30,6 +30,7 @@ def db_session():
     try:
         yield db
     finally:
+        db.rollback()
         db.close()
 
 
@@ -115,28 +116,36 @@ def sample_evidence(db_session: Session, test_org: Organization, test_user: User
     db_session.refresh(evidence)
     
     yield evidence
-    
+
     # Cleanup: Delete evidence-related records
-    db_session.query(RiskFindingRecord).filter(
-        RiskFindingRecord.evidence_id == evidence.id
-    ).delete()
-    db_session.query(ActionPlanRecord).filter(
-        ActionPlanRecord.evidence_id == evidence.id
-    ).delete()
-    db_session.query(WorkflowRun).filter(
-        WorkflowRun.evidence_id == evidence.id
-    ).delete()
-    db_session.query(AuditLog).filter(
-        AuditLog.entity_type == "evidence",
-        AuditLog.entity_id == evidence.id
-    ).delete()
-    db_session.query(AuditLog).filter(
-        AuditLog.entity_type == "workflow_run"
-    ).delete()
-    db_session.query(Evidence).filter(
-        Evidence.id == evidence.id
-    ).delete()
-    db_session.commit()
+    # Rollback any failed transaction before cleanup
+    try:
+        db_session.rollback()
+    except Exception:
+        pass
+    try:
+        db_session.query(RiskFindingRecord).filter(
+            RiskFindingRecord.evidence_id == evidence.id
+        ).delete()
+        db_session.query(ActionPlanRecord).filter(
+            ActionPlanRecord.evidence_id == evidence.id
+        ).delete()
+        db_session.query(WorkflowRun).filter(
+            WorkflowRun.evidence_id == evidence.id
+        ).delete()
+        db_session.query(AuditLog).filter(
+            AuditLog.entity_type == "evidence",
+            AuditLog.entity_id == evidence.id
+        ).delete()
+        db_session.query(AuditLog).filter(
+            AuditLog.entity_type == "workflow_run"
+        ).delete()
+        db_session.query(Evidence).filter(
+            Evidence.id == evidence.id
+        ).delete()
+        db_session.commit()
+    except Exception:
+        db_session.rollback()
 
 
 # ============= TESTS =============
