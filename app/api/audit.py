@@ -2,7 +2,7 @@
 Audit Log API routes.
 """
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -104,14 +104,14 @@ async def get_audit_summary(
     total = db.query(AuditLog).filter(AuditLog.organization_id == org_id).count()
     
     # Events today
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     today_count = db.query(AuditLog).filter(
         AuditLog.organization_id == org_id,
         AuditLog.timestamp >= today_start
     ).count()
     
     # Top actions (last 7 days)
-    week_ago = datetime.utcnow() - timedelta(days=7)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
     from sqlalchemy import func
     
     action_counts = db.query(

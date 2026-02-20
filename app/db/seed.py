@@ -1,7 +1,7 @@
 """
 Database seeding script for initial data.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 import random
 
@@ -151,7 +151,7 @@ def seed_database():
                 severity=severity,
                 affected_products=products,
                 affected_companies=companies,
-                event_date=datetime.utcnow() - timedelta(days=random.randint(1, 30))
+                event_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 30))
             )
             db.add(event)
         

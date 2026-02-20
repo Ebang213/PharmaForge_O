@@ -1,27 +1,25 @@
-# Multi-stage build: Build frontend, then copy to nginx
+# ===========================================
 # Stage 1: Build Frontend
+# ===========================================
 FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
 
-# Copy package files first for better caching
+# Copy package files first for layer caching
 COPY frontend/package*.json ./
 
-# Install dependencies
 RUN npm ci
 
-# Copy frontend source
 COPY frontend/ ./
 
-# Build production bundle
 RUN npm run build
 
-# =========================================
-# Stage 2: Production NGINX
-# =========================================
-FROM nginx:1.25-alpine
+# ===========================================
+# Stage 2: Production NGINX (pinned version)
+# ===========================================
+FROM nginx:1.25.4-alpine
 
-# Install curl for healthcheck (more reliable than wget)
+# Install curl for healthcheck
 RUN apk add --no-cache curl
 
 # Remove default configuration
@@ -33,14 +31,16 @@ COPY nginx/nginx.conf /etc/nginx/nginx.conf
 # Copy frontend build from builder stage
 COPY --from=frontend-builder /app/dist /usr/share/nginx/html
 
-# Create log directory
-RUN mkdir -p /var/log/nginx && \
-    chown -R nginx:nginx /var/log/nginx
+# Create log directory with correct ownership
+RUN mkdir -p /var/log/nginx /var/cache/nginx && \
+    chown -R nginx:nginx /var/log/nginx /var/cache/nginx /usr/share/nginx/html
 
-# Health check using curl (more reliable in Docker)
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -sf http://localhost/health || exit 1
 
-EXPOSE 80 443
+EXPOSE 80
+
+# Run as nginx user (non-root)
+USER nginx
 
 CMD ["nginx", "-g", "daemon off;"]

@@ -20,7 +20,7 @@ export default function Vendors() {
     const loadVendors = async () => {
         try {
             const res = await vendorsApi.list();
-            setVendors(res.data);
+            setVendors(res.data.items || []);
         } catch (error) {
             console.error('Failed to load vendors:', error);
         } finally {

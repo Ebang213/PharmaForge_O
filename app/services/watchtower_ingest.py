@@ -1,7 +1,7 @@
 """
 Watchtower ingestion service for FDA events.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import random
 from typing import List, Dict, Any
 
@@ -115,24 +115,24 @@ def generate_seed_events() -> List[Dict[str, Any]]:
         {
             "event_type": "shortage",
             "source": "fda_seed",
-            "external_id": f"SH-SEED-{datetime.utcnow().strftime('%Y%m%d')}-001",
+            "external_id": f"SH-SEED-{datetime.now(timezone.utc).strftime('%Y%m%d')}-001",
             "title": "Ongoing API Supply Constraint - Metformin",
             "description": "Multiple manufacturers reporting reduced capacity for metformin HCl API.",
             "severity": "high",
             "affected_products": ["Metformin HCl", "Metformin ER"],
             "affected_companies": ["Multiple manufacturers"],
-            "event_date": datetime.utcnow() - timedelta(days=random.randint(1, 5)),
+            "event_date": datetime.now(timezone.utc) - timedelta(days=random.randint(1, 5)),
         },
         {
             "event_type": "warning_letter",
             "source": "fda_seed",
-            "external_id": f"WL-SEED-{datetime.utcnow().strftime('%Y%m%d')}-001",
+            "external_id": f"WL-SEED-{datetime.now(timezone.utc).strftime('%Y%m%d')}-001",
             "title": "Warning Letter - GMP Violations at API Facility",
             "description": "FDA issued warning letter citing multiple GMP violations.",
             "severity": "critical",
             "affected_products": [],
             "affected_companies": ["Seed Pharma API"],
-            "event_date": datetime.utcnow() - timedelta(days=random.randint(1, 10)),
+            "event_date": datetime.now(timezone.utc) - timedelta(days=random.randint(1, 10)),
         },
     ]
 
@@ -178,8 +178,8 @@ def _map_recall_class(classification: str) -> str:
 def _parse_fda_date(date_str: str) -> datetime:
     """Parse FDA date format."""
     if not date_str:
-        return datetime.utcnow()
+        return datetime.now(timezone.utc)
     try:
         return datetime.strptime(date_str[:8], "%Y%m%d")
     except:
-        return datetime.utcnow()
+        return datetime.now(timezone.utc)

@@ -32,7 +32,7 @@ const api: AxiosInstance = axios.create({
 
 // Request interceptor to add auth token
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('pharmaforge_token');
+    const token = sessionStorage.getItem('pharmaforge_token');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
@@ -62,8 +62,8 @@ api.interceptors.response.use(
 
         if (error.response?.status === 401) {
             // Clear auth and redirect to login on 401
-            localStorage.removeItem('pharmaforge_token');
-            localStorage.removeItem('pharmaforge_user');
+            sessionStorage.removeItem('pharmaforge_token');
+            sessionStorage.removeItem('pharmaforge_user');
             window.location.href = '/login';
         }
         return Promise.reject(error);

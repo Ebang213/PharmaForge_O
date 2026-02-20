@@ -12,7 +12,7 @@ export default function WarCouncil() {
     const [selectedVendors, setSelectedVendors] = useState<number[]>([]);
 
     useEffect(() => {
-        vendorsApi.list().then(res => setVendors(res.data)).catch(console.error);
+        vendorsApi.list().then(res => setVendors(res.data.items || [])).catch(console.error);
     }, []);
 
     const handleSubmit = async () => {

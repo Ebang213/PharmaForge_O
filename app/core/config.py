@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     
     # JWT Settings
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour (tightened from 24h)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes (short-lived access tokens)
     
     # Vector DB (Qdrant)
     QDRANT_HOST: str = "qdrant"
@@ -88,19 +88,51 @@ class Settings(BaseSettings):
 
     @field_validator('SECRET_KEY')
     @classmethod
-    def validate_secret_key(cls, v: str) -> str:
-        """Warn if SECRET_KEY is weak (don't crash, but log warning)."""
-        weak_keys = [
+    def validate_secret_key(cls, v: str, info) -> str:
+        """Reject weak SECRET_KEY in production, warn in development."""
+        weak_keys = {
             "your-secret-key-change-in-production",
             "change-me-in-production-use-random-64-chars",
+            "change-me-in-production",
             "secret",
             "changeme",
-        ]
-        if v in weak_keys or len(v) < 32:
+        }
+        is_weak = v in weak_keys or len(v) < 32
+        if is_weak:
+            debug = info.data.get("DEBUG", False)
+            if not debug:
+                raise ValueError(
+                    "SECRET_KEY is weak or default. "
+                    "Generate a strong key with: openssl rand -hex 32"
+                )
             import warnings
             warnings.warn(
-                "SECRET_KEY is weak or default! Set a strong random key in production.",
-                UserWarning
+                "SECRET_KEY is weak or default! Set a strong key before deploying.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return v
+
+    @field_validator('SEED_DEMO')
+    @classmethod
+    def validate_seed_demo(cls, v: bool, info) -> bool:
+        """Prevent demo seeding in production."""
+        if v and not info.data.get("DEBUG", False):
+            raise ValueError(
+                "SEED_DEMO=true is not allowed when DEBUG=false. "
+                "Demo seeding creates predictable credentials."
+            )
+        return v
+
+    @field_validator('POSTGRES_PASSWORD')
+    @classmethod
+    def validate_postgres_password(cls, v: str, info) -> str:
+        """Reject default database password in production."""
+        weak = {"pharmaforge", "postgres", "password", "changeme", ""}
+        if v in weak and not info.data.get("DEBUG", False):
+            raise ValueError(
+                "POSTGRES_PASSWORD is set to a default value. "
+                "Set a strong database password for production."
             )
         return v
 

@@ -10,7 +10,7 @@ Evidence processing flow:
 import hashlib
 import os
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from pydantic import BaseModel
@@ -179,7 +179,7 @@ async def upload_evidence(
             # Success - transition to PROCESSED
             evidence.extracted_text = extracted_text
             evidence.status = EvidenceStatus.PROCESSED
-            evidence.processed_at = datetime.utcnow()
+            evidence.processed_at = datetime.now(timezone.utc)
             status_str = "processed"
             message = "File uploaded and processed successfully"
         elif extracted_text and extracted_text.startswith("["):
@@ -187,20 +187,20 @@ async def upload_evidence(
             evidence.extracted_text = extracted_text
             evidence.status = EvidenceStatus.FAILED
             evidence.error_message = extracted_text
-            evidence.processed_at = datetime.utcnow()
+            evidence.processed_at = datetime.now(timezone.utc)
             status_str = "failed"
             message = f"File uploaded but text extraction failed: {extracted_text}"
         else:
             # Empty extraction
             evidence.status = EvidenceStatus.PROCESSED
-            evidence.processed_at = datetime.utcnow()
+            evidence.processed_at = datetime.now(timezone.utc)
             status_str = "processed"
             message = "File uploaded and processed (no text content)"
     except Exception as e:
         # Exception during extraction - transition to FAILED
         evidence.status = EvidenceStatus.FAILED
         evidence.error_message = str(e)
-        evidence.processed_at = datetime.utcnow()
+        evidence.processed_at = datetime.now(timezone.utc)
         status_str = "failed"
         message = f"File uploaded but processing failed: {str(e)}"
 

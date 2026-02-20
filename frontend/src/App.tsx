@@ -1,18 +1,19 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
-// Pages
-import Login from './pages/Login';
-import MissionControl from './pages/MissionControl';
-import Workflow from './pages/Workflow';
-import Watchtower from './pages/Watchtower';
-import DSCSA from './pages/DSCSA';
-import Copilot from './pages/Copilot';
-import WarCouncil from './pages/WarCouncil';
-import AdminUsers from './pages/AdminUsers';
-
-// Components
+// Components (loaded eagerly — small, always needed)
 import Sidebar from './components/Sidebar';
+import ErrorBoundary from './components/ErrorBoundary';
+
+// Lazy-loaded pages (code-split at route level)
+const Login = lazy(() => import('./pages/Login'));
+const MissionControl = lazy(() => import('./pages/MissionControl'));
+const Workflow = lazy(() => import('./pages/Workflow'));
+const Watchtower = lazy(() => import('./pages/Watchtower'));
+const DSCSA = lazy(() => import('./pages/DSCSA'));
+const Copilot = lazy(() => import('./pages/Copilot'));
+const WarCouncil = lazy(() => import('./pages/WarCouncil'));
+const AdminUsers = lazy(() => import('./pages/AdminUsers'));
 
 // Types
 interface User {
@@ -50,9 +51,9 @@ function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check for existing auth on mount
-        const storedToken = localStorage.getItem('pharmaforge_token');
-        const storedUser = localStorage.getItem('pharmaforge_user');
+        // Check for existing auth on mount (sessionStorage — cleared on browser close)
+        const storedToken = sessionStorage.getItem('pharmaforge_token');
+        const storedUser = sessionStorage.getItem('pharmaforge_user');
 
         if (storedToken && storedUser) {
             setToken(storedToken);
@@ -64,15 +65,15 @@ function AuthProvider({ children }: { children: ReactNode }) {
     const login = (newToken: string, newUser: User) => {
         setToken(newToken);
         setUser(newUser);
-        localStorage.setItem('pharmaforge_token', newToken);
-        localStorage.setItem('pharmaforge_user', JSON.stringify(newUser));
+        sessionStorage.setItem('pharmaforge_token', newToken);
+        sessionStorage.setItem('pharmaforge_user', JSON.stringify(newUser));
     };
 
     const logout = () => {
         setToken(null);
         setUser(null);
-        localStorage.removeItem('pharmaforge_token');
-        localStorage.removeItem('pharmaforge_user');
+        sessionStorage.removeItem('pharmaforge_token');
+        sessionStorage.removeItem('pharmaforge_user');
     };
 
     if (loading) {
@@ -88,6 +89,15 @@ function AuthProvider({ children }: { children: ReactNode }) {
         <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>
             {children}
         </AuthContext.Provider>
+    );
+}
+
+// Suspense fallback for lazy-loaded routes
+function PageLoader() {
+    return (
+        <div className="loading-screen">
+            <div className="loading-spinner"></div>
+        </div>
     );
 }
 
@@ -127,113 +137,117 @@ function PlaceholderPage({ title }: { title: string }) {
 // Main App Component
 export default function App() {
     return (
-        <BrowserRouter>
-            <AuthProvider>
-                <Routes>
-                    {/* Public Route */}
-                    <Route path="/login" element={<Login />} />
+        <ErrorBoundary>
+            <BrowserRouter>
+                <AuthProvider>
+                    <Suspense fallback={<PageLoader />}>
+                        <Routes>
+                            {/* Public Route */}
+                            <Route path="/login" element={<Login />} />
 
-                    {/* Protected Routes */}
-                    <Route path="/" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <Navigate to="/mission-control" replace />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            {/* Protected Routes */}
+                            <Route path="/" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <Navigate to="/mission-control" replace />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    <Route path="/mission-control" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <MissionControl />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            <Route path="/mission-control" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <MissionControl />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    <Route path="/workflow" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <Workflow />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            <Route path="/workflow" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <Workflow />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    <Route path="/watchtower" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <Watchtower />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            <Route path="/watchtower" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <Watchtower />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    <Route path="/dscsa" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <DSCSA />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            <Route path="/dscsa" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <DSCSA />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    <Route path="/copilot" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <Copilot />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            <Route path="/copilot" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <Copilot />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    <Route path="/war-council" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <WarCouncil />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            <Route path="/war-council" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <WarCouncil />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    <Route path="/vendors" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <PlaceholderPage title="Vendors" />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            <Route path="/vendors" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <PlaceholderPage title="Vendors" />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    <Route path="/sourcing" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <PlaceholderPage title="Sourcing" />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            <Route path="/sourcing" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <PlaceholderPage title="Sourcing" />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    <Route path="/audit" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <PlaceholderPage title="Audit Log" />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            <Route path="/audit" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <PlaceholderPage title="Audit Log" />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    <Route path="/settings" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <PlaceholderPage title="Settings" />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            <Route path="/settings" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <PlaceholderPage title="Settings" />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    <Route path="/admin/users" element={
-                        <ProtectedRoute>
-                            <MainLayout>
-                                <AdminUsers />
-                            </MainLayout>
-                        </ProtectedRoute>
-                    } />
+                            <Route path="/admin/users" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <AdminUsers />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
 
-                    {/* Catch-all redirect */}
-                    <Route path="*" element={<Navigate to="/mission-control" replace />} />
-                </Routes>
-            </AuthProvider>
-        </BrowserRouter>
+                            {/* Catch-all redirect */}
+                            <Route path="*" element={<Navigate to="/mission-control" replace />} />
+                        </Routes>
+                    </Suspense>
+                </AuthProvider>
+            </BrowserRouter>
+        </ErrorBoundary>
     );
 }

@@ -4,7 +4,7 @@ Background job definitions.
 from redis import Redis
 from rq import Queue
 from rq_scheduler import Scheduler
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -85,7 +85,7 @@ def send_rfq_email_job(message_id: int):
             # In production, integrate with email service (SendGrid, SES, etc.)
             # For now, just mark as sent
             message.status = MessageStatus.SENT
-            message.sent_at = datetime.utcnow()
+            message.sent_at = datetime.now(timezone.utc)
             logger.info(f"Message {message_id} marked as sent (email integration pending)")
         except Exception as e:
             message.status = MessageStatus.FAILED
@@ -125,7 +125,7 @@ def setup_scheduled_jobs():
     
     # Daily Watchtower ingestion at 6 AM UTC
     scheduler.schedule(
-        scheduled_time=datetime.utcnow(),
+        scheduled_time=datetime.now(timezone.utc),
         func=ingest_watchtower_job,
         interval=86400,  # 24 hours
         repeat=None,
@@ -133,7 +133,7 @@ def setup_scheduled_jobs():
     
     # Daily risk recalculation at 7 AM UTC
     scheduler.schedule(
-        scheduled_time=datetime.utcnow() + timedelta(hours=1),
+        scheduled_time=datetime.now(timezone.utc) + timedelta(hours=1),
         func=recalculate_risk_job,
         interval=86400,
         repeat=None,

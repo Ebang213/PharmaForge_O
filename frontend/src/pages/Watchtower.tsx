@@ -39,7 +39,7 @@ export default function Watchtower() {
         loadData();
         // Get user role from localStorage
         try {
-            const userStr = localStorage.getItem('pharmaforge_user');
+            const userStr = sessionStorage.getItem('pharmaforge_user');
             if (userStr) {
                 const user = JSON.parse(userStr);
                 setUserRole(user.role || 'viewer');
@@ -65,7 +65,7 @@ export default function Watchtower() {
             ]);
             setSummary(summaryRes.data);
             setAlerts(alertsRes.data);
-            setVendors(vendorsRes.data);
+            setVendors(vendorsRes.data.items || []);
             setSources(sourcesRes.data);
             setFeedItems(feedRes.data);
             setFeedSummary(feedSummaryRes.data);

@@ -2,7 +2,7 @@
 Watchtower API routes - Supply chain risk monitoring.
 """
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -791,7 +791,7 @@ async def acknowledge_alert(
     
     alert.is_acknowledged = True
     alert.acknowledged_by = int(user_context["sub"])
-    alert.acknowledged_at = datetime.utcnow()
+    alert.acknowledged_at = datetime.now(timezone.utc)
     alert.notes = data.notes
     
     # Audit log

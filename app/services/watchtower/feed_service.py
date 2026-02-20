@@ -10,7 +10,7 @@ Handles:
 import asyncio
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 
 import redis
@@ -99,7 +99,7 @@ async def sync_provider(
     Returns:
         Sync result with status, items_added, timestamps, and any error
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     result = {
         "source": source_id,
@@ -252,8 +252,8 @@ async def sync_all_providers(db: Session, force: bool = False) -> Dict[str, Any]
                 "error": str(e),
                 "error_message": str(e),
                 "cached": False,
-                "updated_at": datetime.utcnow().isoformat(),
-                "last_error_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "last_error_at": datetime.now(timezone.utc).isoformat(),
             })
     
     # Determine overall status
@@ -438,7 +438,7 @@ def get_health_status(db: Session) -> Dict[str, Any]:
             "facilities": facilities,
         },
         "all_sources_healthy": required_sources_failing == 0,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -603,7 +603,7 @@ def _update_sync_status(
             WatchtowerSyncStatus.source == source_id
         ).first()
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if not status:
             status = WatchtowerSyncStatus(source=source_id)

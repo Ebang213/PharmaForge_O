@@ -2,10 +2,10 @@
 Vendors API routes.
 """
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, subqueryload
 from sqlalchemy import or_
 
 from app.db.session import get_db
@@ -77,9 +77,15 @@ class VendorResponse(BaseModel):
     created_at: datetime
     facility_count: int = 0
     alert_count: int = 0
-    
-    class Config:
-        orm_mode = True
+
+    model_config = {"from_attributes": True}
+
+
+class VendorListResponse(BaseModel):
+    items: List[VendorResponse]
+    total: int
+    limit: int
+    offset: int
 
 
 class FacilityCreate(BaseModel):
@@ -105,27 +111,28 @@ class FacilityResponse(BaseModel):
     risk_score: float
     risk_level: str
     last_inspection_date: Optional[datetime]
-    
-    class Config:
-        orm_mode = True
+
+    model_config = {"from_attributes": True}
 
 
 # ============= VENDOR ROUTES =============
 
-@router.get("", response_model=List[VendorResponse])
+@router.get("", response_model=VendorListResponse)
 async def list_vendors(
     search: Optional[str] = Query(None, description="Search by name or code"),
     vendor_type: Optional[str] = Query(None, description="Filter by type"),
     risk_level: Optional[str] = Query(None, description="Filter by risk level"),
     approved_only: bool = Query(False, description="Show only approved vendors"),
+    limit: int = Query(50, ge=1, le=200, description="Max results per page"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
     user_context: dict = Depends(get_current_user_context),
     db: Session = Depends(get_db)
 ):
-    """List vendors in current organization."""
+    """List vendors in current organization with pagination."""
     query = db.query(Vendor).filter(
         Vendor.organization_id == user_context["org_id"]
     )
-    
+
     if search:
         query = query.filter(
             or_(
@@ -133,22 +140,31 @@ async def list_vendors(
                 Vendor.vendor_code.ilike(f"%{search}%")
             )
         )
-    
+
     if vendor_type:
         query = query.filter(Vendor.vendor_type == vendor_type)
-    
+
     if risk_level:
         query = query.filter(Vendor.risk_level == RiskLevel(risk_level))
-    
+
     if approved_only:
         query = query.filter(Vendor.is_approved == True)
-    
-    vendors = query.order_by(Vendor.name).all()
-    
-    # Add counts
-    result = []
+
+    total = query.count()
+
+    # Eager-load facilities and alerts to prevent N+1 queries
+    vendors = (
+        query
+        .options(subqueryload(Vendor.facilities), subqueryload(Vendor.alerts))
+        .order_by(Vendor.name)
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    items = []
     for v in vendors:
-        vendor_dict = {
+        items.append({
             "id": v.id,
             "name": v.name,
             "vendor_code": v.vendor_code,
@@ -167,10 +183,9 @@ async def list_vendors(
             "created_at": v.created_at,
             "facility_count": len(v.facilities) if v.facilities else 0,
             "alert_count": len([a for a in v.alerts if not a.is_acknowledged]) if v.alerts else 0,
-        }
-        result.append(vendor_dict)
-    
-    return result
+        })
+
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("", response_model=VendorResponse)
@@ -290,7 +305,7 @@ async def update_vendor(
             setattr(vendor, key, value)
     
     if update_data.is_approved is True and vendor.approval_date is None:
-        vendor.approval_date = datetime.utcnow()
+        vendor.approval_date = datetime.now(timezone.utc)
     
     # Audit log
     audit_log = AuditLog(

@@ -1,18 +1,18 @@
 """
 Authentication API routes.
 """
-from datetime import datetime, timedelta
+import re
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.db.session import get_db
 from app.db.models import User, Organization, AuditLog
 from app.core.security import (
-    verify_password, get_password_hash, create_access_token, 
+    verify_password, get_password_hash, create_access_token,
     get_current_user_id, get_token_payload, get_role_value
 )
 from app.core.config import settings
@@ -24,15 +24,24 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., max_length=128)
 
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str
-    full_name: str
-    organization_name: Optional[str] = None
-    organization_slug: Optional[str] = None
+    password: str = Field(..., min_length=10, max_length=128)
+    full_name: str = Field(..., min_length=1, max_length=255)
+    organization_name: Optional[str] = Field(None, max_length=255)
+    organization_slug: Optional[str] = Field(None, max_length=100)
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if not re.search(r'[A-Za-z]', v):
+            raise ValueError('Password must contain at least one letter')
+        if not re.search(r'[0-9]', v):
+            raise ValueError('Password must contain at least one number')
+        return v
 
 
 class TokenResponse(BaseModel):
@@ -49,14 +58,22 @@ class UserResponse(BaseModel):
     role: str
     organization_id: int
     organization_name: str
-    
-    class Config:
-        orm_mode = True
+
+    model_config = {"from_attributes": True}
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str
-    new_password: str
+    current_password: str = Field(..., max_length=128)
+    new_password: str = Field(..., min_length=10, max_length=128)
+
+    @field_validator('new_password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if not re.search(r'[A-Za-z]', v):
+            raise ValueError('Password must contain at least one letter')
+        if not re.search(r'[0-9]', v):
+            raise ValueError('Password must contain at least one number')
+        return v
 
 
 # ============= ROUTES =============
@@ -69,22 +86,22 @@ async def login(
 ):
     """Authenticate user and return JWT token."""
     user = db.query(User).filter(func.lower(User.email) == login_data.email.lower()).first()
-    
+
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
-    
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Account is disabled",
         )
-    
+
     # Update last login
-    user.last_login = datetime.utcnow()
-    
+    user.last_login = datetime.now(timezone.utc)
+
     # Create token with user context
     token_data = {
         "sub": str(user.id),
@@ -92,9 +109,9 @@ async def login(
         "role": get_role_value(user.role),
         "org_id": user.organization_id,
     }
-    
+
     access_token = create_access_token(token_data)
-    
+
     # Log the login
     audit_log = AuditLog(
         user_id=user.id,
@@ -107,7 +124,7 @@ async def login(
     )
     db.add(audit_log)
     db.commit()
-    
+
     return TokenResponse(
         access_token=access_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
@@ -135,7 +152,7 @@ async def register(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Public registration is disabled. Contact an administrator.",
         )
-    
+
     # Check if email exists
     existing = db.query(User).filter(func.lower(User.email) == register_data.email.lower()).first()
     if existing:
@@ -143,7 +160,7 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
-    
+
     # Create organization if provided
     if register_data.organization_name:
         slug = register_data.organization_slug or register_data.organization_name.lower().replace(" ", "-")
@@ -153,7 +170,7 @@ async def register(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Organization slug already exists",
             )
-        
+
         org = Organization(
             name=register_data.organization_name,
             slug=slug,
@@ -168,7 +185,7 @@ async def register(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Organization name is required for registration",
             )
-    
+
     # Create user as owner of new org
     from app.db.models import UserRole
     user = User(
@@ -180,7 +197,7 @@ async def register(
     )
     db.add(user)
     db.flush()
-    
+
     # Log registration
     audit_log = AuditLog(
         user_id=user.id,
@@ -193,7 +210,7 @@ async def register(
     )
     db.add(audit_log)
     db.commit()
-    
+
     # Create token
     token_data = {
         "sub": str(user.id),
@@ -202,7 +219,7 @@ async def register(
         "org_id": user.organization_id,
     }
     access_token = create_access_token(token_data)
-    
+
     return TokenResponse(
         access_token=access_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
@@ -226,7 +243,7 @@ async def get_current_user(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     return UserResponse(
         id=user.id,
         email=user.email,
@@ -248,15 +265,15 @@ async def change_password(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     if not verify_password(data.current_password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect",
         )
-    
+
     user.hashed_password = get_password_hash(data.new_password)
-    
+
     # Log password change
     audit_log = AuditLog(
         user_id=user.id,
@@ -268,7 +285,7 @@ async def change_password(
     )
     db.add(audit_log)
     db.commit()
-    
+
     return {"message": "Password changed successfully"}
 
 
@@ -281,7 +298,7 @@ async def logout(
     """Log out user (for audit purposes)."""
     user_id = int(token_payload.get("sub"))
     org_id = token_payload.get("org_id")
-    
+
     audit_log = AuditLog(
         user_id=user_id,
         organization_id=org_id,
@@ -292,5 +309,5 @@ async def logout(
     )
     db.add(audit_log)
     db.commit()
-    
+
     return {"message": "Logged out successfully"}

@@ -173,7 +173,7 @@ export default function Workflow() {
 
             // Also load full vendor list for reference
             const vendorsRes = await vendorsApi.list();
-            const allVendors = vendorsRes.data || [];
+            const allVendors = vendorsRes.data?.items || [];
             setVendors(allVendors);
 
         } catch (err: any) {

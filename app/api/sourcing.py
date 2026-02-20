@@ -2,7 +2,7 @@
 Smart Sourcing SDR API routes - RFQ and vendor comparison.
 """
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import os
 import uuid
@@ -179,7 +179,7 @@ async def create_rfq(
     user_id = int(user_context["sub"])
     
     # Generate RFQ number
-    rfq_number = f"RFQ-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+    rfq_number = f"RFQ-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
     
     rfq = RFQRequest(
         organization_id=org_id,
@@ -471,7 +471,7 @@ async def approve_messages(
         if message and message.status == MessageStatus.DRAFT:
             message.status = MessageStatus.APPROVED
             message.approved_by = user_id
-            message.approved_at = datetime.utcnow()
+            message.approved_at = datetime.now(timezone.utc)
             approved_count += 1
     
     # Update RFQ status
@@ -723,7 +723,7 @@ async def award_rfq(
     rfq.selected_vendor_id = award_data.vendor_id
     rfq.decision_notes = award_data.decision_notes
     rfq.status = RFQStatus.AWARDED
-    rfq.closed_at = datetime.utcnow()
+    rfq.closed_at = datetime.now(timezone.utc)
     
     vendor = db.query(Vendor).filter(Vendor.id == award_data.vendor_id).first()
     

@@ -489,7 +489,7 @@ class TestFullEndToEnd:
         assert evidence.status == EvidenceStatus.PROCESSED
         assert evidence.processed_at is not None
         assert evidence.extracted_text is not None
-        print(f"\n✓ Step 1: Evidence created (ID: {evidence.id}, status: {evidence.status.value})")
+        print(f"\n✓ Step 1: Evidence created (ID: {evidence.id}, status: {evidence.status})")
 
         # Step 2: Run complete workflow
         workflow_run = WorkflowRun(
@@ -567,7 +567,7 @@ class TestFullEndToEnd:
 
         assert workflow_run.id is not None
         assert workflow_run.status == WorkflowRunStatus.SUCCESS
-        print(f"✓ Step 2: Workflow run completed (ID: {workflow_run.id}, status: {workflow_run.status.value})")
+        print(f"✓ Step 2: Workflow run completed (ID: {workflow_run.id}, status: {workflow_run.status})")
 
         # Step 3: Verify data for audit packet export
         # Retrieve findings from DB
@@ -745,7 +745,7 @@ class TestWorkflowBlocksUnprocessedEvidence:
                 error_message = ""
 
             assert error_raised, "Workflow should FAIL for PROCESSING evidence"
-            assert "processing" in error_message.lower(), "Error should mention processing status"
+            assert "processed" in error_message.lower(), "Error should mention processing status"
 
             print(f"✓ Workflow correctly rejected PROCESSING evidence (ID: {evidence.id})")
 

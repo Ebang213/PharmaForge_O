@@ -3,7 +3,7 @@ RAG document ingestion service.
 """
 import os
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -78,7 +78,7 @@ def process_document_async(document_id: int):
             # Update document status
             document.is_processed = True
             document.chunk_count = len(chunks)
-            document.processed_at = datetime.utcnow()
+            document.processed_at = datetime.now(timezone.utc)
             db.commit()
             
             logger.info(f"Successfully processed document {document_id}")

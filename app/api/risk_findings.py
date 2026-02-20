@@ -4,7 +4,7 @@ Analyzes evidence documents to extract compliance findings with CFR references.
 Persists all workflow data to database for reliable audit packet export.
 """
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import re
 
@@ -185,7 +185,7 @@ def _generate_mock_findings(text: str, evidence_id: int) -> List[dict]:
             "cfr_refs": ["21 CFR 211.142", "21 CFR 211.150"],
             "citations": ["'temperature' mentioned in source document"],
             "entities": [],
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         })
     
     if "cgmp" in text_lower or "gmp" in text_lower or "manufacturing" in text_lower:
@@ -198,7 +198,7 @@ def _generate_mock_findings(text: str, evidence_id: int) -> List[dict]:
             "cfr_refs": ["21 CFR 210", "21 CFR 211"],
             "citations": ["Manufacturing/cGMP terminology in document"],
             "entities": [],
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         })
     
     if "recall" in text_lower or "defect" in text_lower or "deviation" in text_lower:
@@ -211,7 +211,7 @@ def _generate_mock_findings(text: str, evidence_id: int) -> List[dict]:
             "cfr_refs": ["21 CFR 211.192", "21 CFR Part 7"],
             "citations": ["Quality deviation terminology detected"],
             "entities": [],
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         })
     
     if "supplier" in text_lower or "vendor" in text_lower:
@@ -224,7 +224,7 @@ def _generate_mock_findings(text: str, evidence_id: int) -> List[dict]:
             "cfr_refs": ["21 CFR 211.84", "21 CFR 211.80"],
             "citations": ["Supplier/vendor references in document"],
             "entities": [],
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         })
     
     if "labeling" in text_lower or "label" in text_lower:
@@ -237,7 +237,7 @@ def _generate_mock_findings(text: str, evidence_id: int) -> List[dict]:
             "cfr_refs": ["21 CFR 211.122", "21 CFR 211.125", "21 CFR 211.130"],
             "citations": ["Labeling terminology in document"],
             "entities": [],
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         })
     
     if "serialization" in text_lower or "dscsa" in text_lower or "traceability" in text_lower:
@@ -250,7 +250,7 @@ def _generate_mock_findings(text: str, evidence_id: int) -> List[dict]:
             "cfr_refs": ["DSCSA Section 582"],
             "citations": ["Serialization/DSCSA references in document"],
             "entities": [],
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         })
     
     # Always add at least one general finding
@@ -264,7 +264,7 @@ def _generate_mock_findings(text: str, evidence_id: int) -> List[dict]:
             "cfr_refs": ["21 CFR 211"],
             "citations": ["General document review"],
             "entities": [],
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         })
     
     if len(findings) < 3:
@@ -277,7 +277,7 @@ def _generate_mock_findings(text: str, evidence_id: int) -> List[dict]:
             "cfr_refs": ["21 CFR 211.180"],
             "citations": ["Standard record retention check"],
             "entities": [],
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         })
     
     return findings[:10]  # Cap at 10 findings
@@ -428,7 +428,7 @@ def _generate_correlation(
         active_alerts=active_alerts,
         sources_status=sources_status,
         top_items=top_items,
-        timestamp=datetime.utcnow().isoformat() + "Z"
+        timestamp=datetime.now(timezone.utc).isoformat() + "Z"
     )
     
     # 2. Extract vendor candidates from evidence
@@ -496,7 +496,7 @@ def _generate_correlation(
         "watchtower_snapshot": watchtower_snapshot.dict(),
         "vendor_matches": [vm.dict() for vm in vendor_matches],
         "narrative": narrative,
-        "correlation_timestamp": datetime.utcnow().isoformat() + "Z"
+        "correlation_timestamp": datetime.now(timezone.utc).isoformat() + "Z"
     }
 
 
@@ -855,7 +855,7 @@ async def run_complete_workflow(
         
         # Mark workflow as success
         workflow_run.status = WorkflowRunStatus.SUCCESS
-        workflow_run.completed_at = datetime.utcnow()
+        workflow_run.completed_at = datetime.now(timezone.utc)
         
         # Create audit log entry
         audit_log = AuditLog(
@@ -885,7 +885,7 @@ async def run_complete_workflow(
             findings_count=workflow_run.findings_count,
             correlations_count=workflow_run.correlations_count,
             actions_count=workflow_run.actions_count,
-            created_at=workflow_run.created_at.isoformat() if workflow_run.created_at else datetime.utcnow().isoformat(),
+            created_at=workflow_run.created_at.isoformat() if workflow_run.created_at else datetime.now(timezone.utc).isoformat(),
             message=f"Workflow completed: {workflow_run.findings_count} findings, {workflow_run.actions_count} actions"
         )
         
@@ -893,7 +893,7 @@ async def run_complete_workflow(
         # Mark workflow as failed
         workflow_run.status = WorkflowRunStatus.FAILED
         workflow_run.error_message = str(e)
-        workflow_run.completed_at = datetime.utcnow()
+        workflow_run.completed_at = datetime.now(timezone.utc)
         db.commit()
         
         logger.error(f"Workflow run {workflow_run.id} failed: {e}")
@@ -1160,7 +1160,7 @@ async def export_audit_packet(
     md_lines = [
         f"# Audit Packet: {evidence.filename}",
         f"**Workflow Run ID: {workflow_run.id}**",
-        f"Generated: {datetime.utcnow().isoformat()}Z",
+        f"Generated: {datetime.now(timezone.utc).isoformat()}Z",
         "",
         "---",
         "",
@@ -1335,7 +1335,7 @@ async def export_audit_packet(
     ])
 
     markdown_content = "\n".join(md_lines)
-    filename = f"audit_packet_run{workflow_run.id}_ev{evidence_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md"
+    filename = f"audit_packet_run{workflow_run.id}_ev{evidence_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.md"
 
     # Log the export action
     export_audit_log = AuditLog(

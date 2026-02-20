@@ -5,7 +5,8 @@ import json
 import re
 from typing import List, Dict, Any
 from datetime import datetime
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
+from xml.etree.ElementTree import Element  # for type hints only; parsing uses defusedxml
 
 
 def parse_epcis_file(content: str, file_type: str) -> List[Dict[str, Any]]:
@@ -128,7 +129,7 @@ def parse_single_event(event: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def parse_xml_event(elem: ET.Element, event_type: str) -> Dict[str, Any]:
+def parse_xml_event(elem: Element, event_type: str) -> Dict[str, Any]:
     """Parse XML event element."""
     
     def get_text(path: str) -> str:

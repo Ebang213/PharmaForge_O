@@ -2,7 +2,7 @@
 War Council API routes - Multi-persona strategic responses.
 """
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -170,7 +170,7 @@ async def query_war_council(
         synthesis=result["synthesis"],
         overall_risk=result["overall_risk"],
         priority_actions=result["priority_actions"],
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
 
 

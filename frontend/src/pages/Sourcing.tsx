@@ -23,7 +23,7 @@ export default function Sourcing() {
         try {
             const [rfqRes, vendorRes] = await Promise.all([sourcingApi.listRfqs(), vendorsApi.list()]);
             setRfqs(rfqRes.data);
-            setVendors(vendorRes.data);
+            setVendors(vendorRes.data.items || []);
         } catch (error) {
             console.error('Failed to load data:', error);
         } finally {

@@ -14,6 +14,8 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
+    pool_timeout=30,
+    pool_recycle=1800,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -196,7 +198,7 @@ def seed_demo_data():
     WARNING: This creates predictable demo credentials.
     NEVER enable SEED_DEMO=true in production!
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     import random
     from app.db.models import (
         Organization, User, UserRole, Vendor, Facility,
@@ -318,7 +320,7 @@ def seed_demo_data():
                 severity=severity,
                 affected_products=products,
                 affected_companies=companies,
-                event_date=datetime.utcnow() - timedelta(days=random.randint(1, 30))
+                event_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 30))
             )
             db.add(event)
         

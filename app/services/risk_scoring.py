@@ -46,9 +46,9 @@ def calculate_vendor_risk(db: Session, vendor: Vendor) -> Tuple[float, RiskLevel
         base_score += 20
     
     # Factor 4: Time since last audit
-    from datetime import datetime, timedelta
+    from datetime import datetime, timezone
     if vendor.last_audit_date:
-        days_since_audit = (datetime.utcnow() - vendor.last_audit_date).days
+        days_since_audit = (datetime.now(timezone.utc) - vendor.last_audit_date).days
         if days_since_audit > 365 * 2:  # 2+ years
             base_score += 15
         elif days_since_audit > 365:  # 1+ years
@@ -117,9 +117,9 @@ def calculate_facility_risk(db: Session, facility: Facility) -> Tuple[float, Ris
         base_score += 6
     
     # Factor 4: Time since last inspection
-    from datetime import datetime
+    from datetime import datetime, timezone
     if facility.last_inspection_date:
-        days_since = (datetime.utcnow() - facility.last_inspection_date).days
+        days_since = (datetime.now(timezone.utc) - facility.last_inspection_date).days
         if days_since > 365 * 3:  # 3+ years
             base_score += 20
         elif days_since > 365 * 2:  # 2+ years
@@ -188,9 +188,9 @@ def get_risk_factors(db: Session, vendor: Vendor) -> dict:
         })
     
     # Last audit
-    from datetime import datetime
+    from datetime import datetime, timezone
     if vendor.last_audit_date:
-        days_since = (datetime.utcnow() - vendor.last_audit_date).days
+        days_since = (datetime.now(timezone.utc) - vendor.last_audit_date).days
         if days_since > 365:
             factors.append({
                 "factor": "Audit Age",

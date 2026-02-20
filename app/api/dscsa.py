@@ -2,7 +2,7 @@
 DSCSA EPCIS API routes - Serialization and track-and-trace.
 """
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import os
 import json
@@ -208,7 +208,7 @@ async def upload_epcis_file(
     else:
         upload.validation_status = EPCISValidationStatus.VALID
     
-    upload.validated_at = datetime.utcnow()
+    upload.validated_at = datetime.now(timezone.utc)
     upload.validation_results = {
         "total_events": len(events),
         "issues_count": len(all_issues),
@@ -283,10 +283,12 @@ async def upload_epcis_file_alias(
 @router.get("/epcis/uploads", response_model=List[UploadResponse])
 async def list_uploads_alias(
     status: Optional[str] = Query(None),
+    limit: int = Query(50, le=100),
+    offset: int = Query(0),
     user_context: dict = Depends(get_current_user_context),
     db: Session = Depends(get_db)
 ):
-    return await list_uploads(status, user_context=user_context, db=db)
+    return await list_uploads(status, limit=limit, offset=offset, user_context=user_context, db=db)
 
 @router.get("/epcis/uploads/{upload_id}", response_model=UploadDetailResponse)
 async def get_upload_detail_alias(
@@ -364,7 +366,7 @@ async def download_audit_packet(
         raise HTTPException(status_code=404, detail="Upload not found")
     
     audit_packet = {
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "upload": {
             "id": upload.id,
             "filename": upload.filename,

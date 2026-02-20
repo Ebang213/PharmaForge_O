@@ -43,6 +43,7 @@ jobs:
       DATABASE_URL: postgresql://test:test@localhost:5432/test_db
       REDIS_URL: redis://localhost:6379/0
       SECRET_KEY: test-secret-key-for-ci-minimum-32-chars-long-xxxxx
+      DEBUG: "true"
       TESTING: "1"
 
     steps:
@@ -60,23 +61,20 @@ jobs:
           pip install -r requirements.txt
           pip install flake8 black isort
 
-      # ── Lint (non-blocking) ──────────────────────
-      # These are advisory — they surface formatting
-      # issues but won't fail CI while the codebase is
-      # being incrementally formatted.
-      - name: Lint – Black (formatting)
+      # -- Lint (non-blocking) --------------------
+      - name: Lint - Black (formatting)
         continue-on-error: true
         run: black --check app/
 
-      - name: Lint – isort (import order)
+      - name: Lint - isort (import order)
         continue-on-error: true
         run: isort --check-only app/
 
-      - name: Lint – Flake8
+      - name: Lint - Flake8
         continue-on-error: true
         run: flake8 app/ --max-line-length=120 --exclude=__pycache__,migrations
 
-      # ── Database & Tests ─────────────────────────
+      # -- Database & Tests -----------------------
       - name: Run Alembic migrations
         run: alembic upgrade head
 
@@ -127,21 +125,63 @@ jobs:
           retention-days: 7
 
   #===========================================
+  # Security: Dependency Audit
+  #===========================================
+  security-audit:
+    name: "Security: Dependency Audit"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit Python dependencies
+        run: pip-audit -r requirements.txt --desc on --output json || true
+
+      - name: Audit Python dependencies (strict)
+        continue-on-error: true
+        run: pip-audit -r requirements.txt
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Audit npm dependencies
+        working-directory: ./frontend
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+  #===========================================
   # CI Summary
   #===========================================
   ci-passed:
-    name: "CI ✅"
+    name: "CI Passed"
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [backend, frontend, security-audit]
     if: always()
     steps:
       - name: Check job results
         run: |
           echo "=== CI Summary ==="
-          echo "Backend:  ${{ needs.backend.result }}"
-          echo "Frontend: ${{ needs.frontend.result }}"
+          echo "Backend:        ${{ needs.backend.result }}"
+          echo "Frontend:       ${{ needs.frontend.result }}"
+          echo "Security Audit: ${{ needs.security-audit.result }}"
           if [[ "${{ needs.backend.result }}" != "success" || "${{ needs.frontend.result }}" != "success" ]]; then
-            echo "❌ CI failed – see individual job logs above."
+            echo "CI failed - see individual job logs above."
             exit 1
           fi
-          echo "✅ All CI checks passed."
+          if [[ "${{ needs.security-audit.result }}" == "failure" ]]; then
+            echo "WARNING: Security audit found issues. Review dependency vulnerabilities."
+          fi
+          echo "All CI checks passed."

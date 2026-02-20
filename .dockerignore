@@ -36,11 +36,18 @@ frontend/build/
 frontend/.vite/
 frontend/node_modules/
 
-# Environment
+# Environment & Secrets
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.production.example
 *.env
+.auth_token.txt
+_auth_token.txt
+*.key
+*.pem
+*.crt
+*.cert
 
 # IDEs
 .vscode/
