@@ -38,8 +38,9 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://test:test@localhost:5432/test_db
-      REDIS_URL: redis://localhost:6379
-      SECRET_KEY: test-secret
+      REDIS_URL: redis://localhost:6379/0
+      SECRET_KEY: test-secret-key-for-ci-minimum-32-chars-long-xxxxx
+      DEBUG: "true"
       TESTING: "1"
 
     steps:
