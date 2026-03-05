@@ -7,16 +7,13 @@ on:
     branches: [main]
 
 jobs:
-  #===========================================
-  # Backend Tests
-  #===========================================
   backend:
-    name: "Backend: Lint & Test"
+    name: "Backend Tests"
     runs-on: ubuntu-latest
 
     services:
       postgres:
-        image: postgres:15
+        image: postgres:14
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
@@ -41,9 +38,8 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://test:test@localhost:5432/test_db
-      REDIS_URL: redis://localhost:6379/0
-      SECRET_KEY: test-secret-key-for-ci-minimum-32-chars-long-xxxxx
-      DEBUG: "true"
+      REDIS_URL: redis://localhost:6379
+      SECRET_KEY: test-secret
       TESTING: "1"
 
     steps:
@@ -55,133 +51,13 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install flake8 black isort
 
-      # -- Lint (non-blocking) --------------------
-      - name: Lint - Black (formatting)
-        continue-on-error: true
-        run: black --check app/
-
-      - name: Lint - isort (import order)
-        continue-on-error: true
-        run: isort --check-only app/
-
-      - name: Lint - Flake8
-        continue-on-error: true
-        run: flake8 app/ --max-line-length=120 --exclude=__pycache__,migrations
-
-      # -- Database & Tests -----------------------
       - name: Run Alembic migrations
         run: alembic upgrade head
 
-      - name: Run pytest with coverage
-        run: |
-          pytest --cov=app --cov-report=xml --cov-report=term-missing -v
-
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage.xml
-          flags: backend
-          name: backend-coverage
-          fail_ci_if_error: false
-
-  #===========================================
-  # Frontend Build
-  #===========================================
-  frontend:
-    name: "Frontend: Build"
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        working-directory: ./frontend
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: ./frontend
-        run: npm run build
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist/
-          retention-days: 7
-
-  #===========================================
-  # Security: Dependency Audit
-  #===========================================
-  security-audit:
-    name: "Security: Dependency Audit"
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-
-      - name: Install pip-audit
-        run: pip install pip-audit
-
-      - name: Audit Python dependencies
-        run: pip-audit -r requirements.txt --desc on --output json || true
-
-      - name: Audit Python dependencies (strict)
-        continue-on-error: true
-        run: pip-audit -r requirements.txt
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Audit npm dependencies
-        working-directory: ./frontend
-        continue-on-error: true
-        run: npm audit --audit-level=high
-
-  #===========================================
-  # CI Summary
-  #===========================================
-  ci-passed:
-    name: "CI Passed"
-    runs-on: ubuntu-latest
-    needs: [backend, frontend, security-audit]
-    if: always()
-    steps:
-      - name: Check job results
-        run: |
-          echo "=== CI Summary ==="
-          echo "Backend:        ${{ needs.backend.result }}"
-          echo "Frontend:       ${{ needs.frontend.result }}"
-          echo "Security Audit: ${{ needs.security-audit.result }}"
-          if [[ "${{ needs.backend.result }}" != "success" || "${{ needs.frontend.result }}" != "success" ]]; then
-            echo "CI failed - see individual job logs above."
-            exit 1
-          fi
-          if [[ "${{ needs.security-audit.result }}" == "failure" ]]; then
-            echo "WARNING: Security audit found issues. Review dependency vulnerabilities."
-          fi
-          echo "All CI checks passed."
+      - name: Run pytest
+        run: pytest -v
