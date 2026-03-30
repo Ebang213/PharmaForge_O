@@ -7,11 +7,16 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
+from app.core.rate_limit import limiter
 from app.db.session import init_db, engine
 
 # Setup logging
@@ -50,6 +55,10 @@ app = FastAPI(
     redoc_url="/redoc" if settings.DEBUG else "/redoc",
 )
 
+# Rate limiting — slowapi state and handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # CORS middleware — restrict methods/headers in production
 app.add_middleware(
     CORSMiddleware,
@@ -58,6 +67,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
 )
+
+# Prometheus metrics middleware — measures request duration & counts
+from app.core.middleware import PrometheusMiddleware  # noqa: E402
+app.add_middleware(PrometheusMiddleware)
 
 
 # Import and include routers
@@ -73,6 +86,7 @@ from app.api.sourcing import router as sourcing_router
 from app.api.admin import router as admin_router
 from app.api.evidence import router as evidence_router
 from app.api.risk_findings import router as risk_findings_router
+from app.api.audit_packet import router as audit_packet_router
 
 app.include_router(auth_router)
 app.include_router(orgs_router)
@@ -86,6 +100,30 @@ app.include_router(sourcing_router)
 app.include_router(admin_router)
 app.include_router(evidence_router)
 app.include_router(risk_findings_router)
+app.include_router(audit_packet_router)
+
+
+# Celery task status endpoint — poll for background task results
+@app.get("/api/tasks/{task_id}")
+async def get_task_status(task_id: str):
+    """Return the current status of a Celery background task.
+
+    Possible statuses: PENDING, STARTED, SUCCESS, FAILURE, RETRY, REVOKED.
+    When the task is complete, the response includes the task result.
+    """
+    from app.core.celery_app import celery_app as _celery
+
+    result = _celery.AsyncResult(task_id)
+    response = {
+        "task_id": task_id,
+        "status": result.status,
+    }
+    if result.ready():
+        if result.successful():
+            response["result"] = result.result
+        else:
+            response["error"] = str(result.result)
+    return response
 
 
 # Health check endpoint — actually verifies backend connectivity
@@ -124,6 +162,13 @@ async def health_check():
             "checks": checks,
         },
     )
+
+
+# Prometheus metrics endpoint — no authentication required
+@app.get("/metrics", include_in_schema=False)
+async def metrics():
+    """Expose Prometheus metrics for scraping."""
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # Global exception handler — never expose internals to clients

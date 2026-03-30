@@ -76,11 +76,36 @@ services:
         condition: service_started
     restart: always
 
-  # Background Worker
+  # Background Worker (RQ — legacy scheduled jobs)
   worker:
     build: .
     container_name: pharmaforge_worker
     command: python -m app.workers.worker
+    volumes:
+      - ./app:/code/app
+      - uploads_data:/code/uploads
+    environment:
+      - DATABASE_URL=postgresql://pharmaforge:pharmaforge@postgres:5432/pharmaforge
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - DEBUG=${DEBUG:-false}
+      - LLM_PROVIDER=${LLM_PROVIDER:-mock}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  # Celery Worker — async task processing
+  celery-worker:
+    build: .
+    container_name: pharmaforge_celery_worker
+    command: celery -A app.core.celery_app worker --loglevel=info
     volumes:
       - ./app:/code/app
       - uploads_data:/code/uploads

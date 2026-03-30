@@ -10,7 +10,7 @@ Evidence processing flow:
 import hashlib
 import os
 from typing import Optional, List
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from pydantic import BaseModel
@@ -22,6 +22,7 @@ from app.db.models import Evidence, EvidenceStatus, AuditLog
 from app.core.rbac import require_viewer, require_operator
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.rate_limit import limiter
 
 logger = get_logger(__name__)
 
@@ -55,6 +56,7 @@ class EvidenceUploadResponse(BaseModel):
     status: str
     created_at: datetime
     message: str
+    task_id: Optional[str] = None
 
 
 # ============= TEXT EXTRACTION =============
@@ -96,6 +98,7 @@ def extract_text_from_file(content: bytes, content_type: str, filename: str) -> 
 # ============= ENDPOINTS =============
 
 @router.post("", response_model=EvidenceUploadResponse)
+@limiter.limit("10/minute")
 async def upload_evidence(
     request: Request,
     file: UploadFile = File(...),
@@ -164,48 +167,12 @@ async def upload_evidence(
         status=EvidenceStatus.PENDING
     )
     db.add(evidence)
-    db.flush()  # Get ID before processing
-
-    # Transition to PROCESSING
-    evidence.status = EvidenceStatus.PROCESSING
-    db.flush()
-
-    # Extract text
-    try:
-        extracted_text = extract_text_from_file(content, file.content_type or "", file.filename or "")
-
-        # Check if extraction was successful
-        if extracted_text and not extracted_text.startswith("["):
-            # Success - transition to PROCESSED
-            evidence.extracted_text = extracted_text
-            evidence.status = EvidenceStatus.PROCESSED
-            evidence.processed_at = datetime.now(timezone.utc)
-            status_str = "processed"
-            message = "File uploaded and processed successfully"
-        elif extracted_text and extracted_text.startswith("["):
-            # Extraction failed with error message
-            evidence.extracted_text = extracted_text
-            evidence.status = EvidenceStatus.FAILED
-            evidence.error_message = extracted_text
-            evidence.processed_at = datetime.now(timezone.utc)
-            status_str = "failed"
-            message = f"File uploaded but text extraction failed: {extracted_text}"
-        else:
-            # Empty extraction
-            evidence.status = EvidenceStatus.PROCESSED
-            evidence.processed_at = datetime.now(timezone.utc)
-            status_str = "processed"
-            message = "File uploaded and processed (no text content)"
-    except Exception as e:
-        # Exception during extraction - transition to FAILED
-        evidence.status = EvidenceStatus.FAILED
-        evidence.error_message = str(e)
-        evidence.processed_at = datetime.now(timezone.utc)
-        status_str = "failed"
-        message = f"File uploaded but processing failed: {str(e)}"
-
     db.commit()
     db.refresh(evidence)
+
+    # Enqueue text extraction as a background task
+    from app.tasks.evidence_tasks import process_evidence_text
+    task = process_evidence_text.delay(evidence.id)
 
     # Create audit log entry for evidence upload
     audit_log = AuditLog(
@@ -218,23 +185,34 @@ async def upload_evidence(
             "filename": evidence.filename,
             "sha256": evidence.sha256,
             "content_type": evidence.content_type,
-            "status": status_str,
-            "source": "copilot"
+            "status": "processing",
+            "source": "copilot",
+            "task_id": task.id,
         },
         ip_address=request.client.host if request.client else None
     )
     db.add(audit_log)
     db.commit()
 
-    logger.info(f"Evidence uploaded: {evidence.filename} (ID: {evidence.id}, status: {status_str})")
+    logger.info(
+        "Evidence uploaded, text extraction enqueued",
+        extra={
+            "service": "evidence",
+            "event": "evidence_upload",
+            "evidence_id": evidence.id,
+            "task_id": task.id,
+            "source": "copilot",
+        },
+    )
 
     return EvidenceUploadResponse(
         id=evidence.id,
         filename=evidence.filename,
         sha256=evidence.sha256,
-        status=status_str,
+        status="processing",
         created_at=evidence.uploaded_at,
-        message=message
+        message="File uploaded. Text extraction is processing in the background.",
+        task_id=task.id,
     )
 
 

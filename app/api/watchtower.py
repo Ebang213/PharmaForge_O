@@ -15,7 +15,7 @@ from app.db.models import (
 from app.db.session import get_db
 from app.core.rbac import get_current_user_context, Role, has_permission
 from app.core.logging import get_logger
-from app.services.risk_scoring import calculate_vendor_risk, calculate_facility_risk
+from app.core.rate_limit import limiter
 from app.services.pdf_extract import extract_text_from_pdf, analyze_document_content
 from fastapi import UploadFile, File, Form
 import hashlib
@@ -164,7 +164,8 @@ class WatchtowerEvidenceUploadResponse(BaseModel):
     filename: str
     status: str
     created_at: datetime
-    
+    task_id: Optional[str] = None
+
     class Config:
         orm_mode = True
 
@@ -396,13 +397,6 @@ async def _create_watchtower_evidence(
         "notes": notes,
     }
 
-    extracted_text = ""
-    try:
-        extracted_text = _extract_text_from_upload(content, file.filename or "", file.content_type)
-    except Exception as exc:
-        logger.error(f"Watchtower evidence extraction failed: {exc}")
-        meta_data["extraction_error"] = str(exc)
-
     evidence = Evidence(
         organization_id=user_context["org_id"],
         vendor_id=resolved_vendor_id,
@@ -411,7 +405,7 @@ async def _create_watchtower_evidence(
         storage_path=storage_path,
         sha256=sha256,
         uploaded_by=int(user_context["sub"]),
-        extracted_text=extracted_text,
+        extracted_text="",
         source="watchtower",
         meta_data=meta_data,
     )
@@ -423,6 +417,24 @@ async def _create_watchtower_evidence(
         db.rollback()
         logger.error(f"Watchtower evidence DB write failed: {exc}")
         raise HTTPException(status_code=500, detail="Failed to save evidence record")
+
+    # Enqueue text extraction as a background task
+    from app.tasks.evidence_tasks import process_evidence_text
+    task = process_evidence_text.delay(evidence.id)
+
+    logger.info(
+        "Evidence uploaded via Watchtower, extraction enqueued",
+        extra={
+            "service": "watchtower",
+            "event": "evidence_upload",
+            "evidence_id": evidence.id,
+            "task_id": task.id,
+            "source": "watchtower",
+        },
+    )
+
+    # Stash task_id on the instance so callers can include it in responses
+    evidence._celery_task_id = task.id
 
     return evidence
 
@@ -449,11 +461,32 @@ async def upload_watchtower_evidence(
         notes=notes,
     )
 
+    task_id = getattr(evidence, "_celery_task_id", None)
+
+    # Audit log for watchtower evidence upload
+    audit_log = AuditLog(
+        organization_id=user_context["org_id"],
+        user_id=int(user_context["sub"]),
+        action="watchtower_evidence_uploaded",
+        entity_type="evidence",
+        entity_id=evidence.id,
+        details={
+            "filename": evidence.filename,
+            "source": "watchtower",
+            "source_type": source_type,
+            "vendor_name": vendor_name,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    db.add(audit_log)
+    db.commit()
+
     return WatchtowerEvidenceUploadResponse(
         id=evidence.id,
         filename=evidence.filename,
-        status=_evidence_status(evidence),
+        status="processing" if task_id else _evidence_status(evidence),
         created_at=evidence.uploaded_at,
+        task_id=task_id,
     )
 
 
@@ -473,11 +506,13 @@ async def upload_evidence_legacy(
         vendor_id=vendor_id,
     )
 
+    task_id = getattr(evidence, "_celery_task_id", None)
     return WatchtowerEvidenceUploadResponse(
         id=evidence.id,
         filename=evidence.filename,
-        status=_evidence_status(evidence),
+        status="processing" if task_id else _evidence_status(evidence),
         created_at=evidence.uploaded_at,
+        task_id=task_id,
     )
 
 
@@ -815,39 +850,26 @@ async def recalculate_risk(
     user_context: dict = Depends(get_current_user_context),
     db: Session = Depends(get_db)
 ):
-    """Trigger risk recalculation for all vendors and facilities."""
+    """Trigger risk recalculation for all vendors and facilities.
+
+    Enqueues a background Celery task. Poll GET /api/tasks/{task_id} for results.
+    """
     _require_role(user_context, Role.OPERATOR)
-    org_id = user_context["org_id"]
-    
-    vendors = db.query(Vendor).filter(Vendor.organization_id == org_id).all()
-    for vendor in vendors:
-        risk_score, risk_level = calculate_vendor_risk(db, vendor)
-        vendor.risk_score = risk_score
-        vendor.risk_level = risk_level
-    
-    facilities = db.query(Facility).filter(Facility.organization_id == org_id).all()
-    for facility in facilities:
-        risk_score, risk_level = calculate_facility_risk(db, facility)
-        facility.risk_score = risk_score
-        facility.risk_level = risk_level
-    
-    # Audit log
-    audit_log = AuditLog(
-        user_id=int(user_context["sub"]),
-        organization_id=org_id,
-        action="recalculate_risk",
-        entity_type="watchtower",
-        details={"vendors_updated": len(vendors), "facilities_updated": len(facilities)},
-        ip_address=request.client.host if request.client else None,
+
+    from app.tasks.watchtower_tasks import recalculate_risk as recalculate_risk_task
+    task = recalculate_risk_task.delay(user_context["org_id"], int(user_context["sub"]))
+
+    logger.info(
+        "Risk recalculation enqueued",
+        extra={
+            "service": "watchtower",
+            "event": "risk_recalc_enqueued",
+            "task_id": task.id,
+            "org_id": user_context["org_id"],
+        },
     )
-    db.add(audit_log)
-    db.commit()
-    
-    return {
-        "message": "Risk scores recalculated",
-        "vendors_updated": len(vendors),
-        "facilities_updated": len(facilities),
-    }
+
+    return {"status": "processing", "task_id": task.id}
 
 
 # ============= LIVE FEED ENDPOINTS =============
@@ -975,6 +997,7 @@ async def get_feed_sources_alias(
 
 
 @router.post("/sync")
+@limiter.limit("10/minute")
 async def trigger_sync(
     request: Request,
     source: Optional[str] = Query(None, description="Specific source to sync, or all if omitted"),
@@ -984,19 +1007,11 @@ async def trigger_sync(
 ):
     """
     Trigger a sync of live feed data from external sources.
-    Admin-only endpoint.
+    Admin-only endpoint.  Enqueues a background Celery task.
 
     Returns:
-        HTTP 200 with JSON:
-            - status: "ok" (success or partial success)
-            - degraded: boolean (true if some sources failed)
-            - results: array of per-source results
-            - total_items_added: total new items persisted
-        HTTP 502 if ALL sources fail
+        task_id: Celery task ID for polling via GET /api/tasks/{task_id}
     """
-    from app.services.watchtower.feed_service import sync_provider, sync_all_providers
-    from fastapi.responses import JSONResponse
-
     # Check if user has admin role
     role = user_context.get("role", Role.VIEWER)
     if isinstance(role, str):
@@ -1007,90 +1022,32 @@ async def trigger_sync(
     if role not in [Role.ADMIN, Role.OWNER]:
         raise HTTPException(status_code=403, detail="Only admins can trigger sync")
 
-    logger.info(f"Sync triggered by user={user_context.get('sub')}, source={source or 'all'}, force={force}")
+    from app.tasks.watchtower_tasks import sync_feeds
+    task = sync_feeds.delay(source, force, int(user_context["sub"]), user_context["org_id"])
 
-    try:
-        if source:
-            # Single source sync
-            result = await sync_provider(source, db, force=force)
-            response_data = {
-                "status": "ok" if result.get("success") else "error",
-                "degraded": not result.get("success"),
-                "results": [result],
-                "total_items_added": result.get("items_added", 0),
-                "sources_succeeded": 1 if result.get("success") else 0,
-                "sources_failed": 0 if result.get("success") else 1,
-            }
-        else:
-            # All sources sync - sync_all_providers returns the structured response
-            response_data = await sync_all_providers(db, force=force)
+    # Audit log for sync trigger
+    audit_log = AuditLog(
+        organization_id=user_context["org_id"],
+        user_id=int(user_context["sub"]),
+        action="watchtower_sync_triggered",
+        entity_type="watchtower",
+        details={"source": source or "all", "force": force, "task_id": task.id},
+        ip_address=request.client.host if request.client else None,
+    )
+    db.add(audit_log)
+    db.commit()
 
-    except Exception as e:
-        # Catch any unexpected errors during sync and return a structured response
-        logger.error(f"Unexpected error during sync: {e}", exc_info=True)
-        try:
-            db.rollback()
-        except Exception:
-            pass
-        response_data = {
-            "status": "error",
-            "degraded": True,
-            "results": [{"source": source or "all", "success": False, "error": str(e)}],
-            "total_items_added": 0,
-            "sources_succeeded": 0,
-            "sources_failed": 1,
-        }
+    logger.info(
+        "Feed sync enqueued",
+        extra={
+            "service": "watchtower",
+            "event": "feed_sync_enqueued",
+            "source": source or "all",
+            "task_id": task.id,
+        },
+    )
 
-    # Write audit log in a separate try block to avoid affecting the sync response
-    try:
-        # Ensure clean session state before audit log
-        if db.is_active:
-            try:
-                db.rollback()
-            except Exception:
-                pass
-
-        audit_log = AuditLog(
-            user_id=int(user_context["sub"]),
-            organization_id=user_context["org_id"],
-            action="watchtower_sync",
-            entity_type="watchtower",
-            details={
-                "source": source or "all",
-                "force": force,
-                "status": response_data.get("status"),
-                "degraded": response_data.get("degraded"),
-                "total_items_added": response_data.get("total_items_added"),
-                "sources_succeeded": response_data.get("sources_succeeded"),
-                "sources_failed": response_data.get("sources_failed"),
-            },
-            ip_address=request.client.host if request.client else None,
-        )
-        db.add(audit_log)
-        db.commit()
-    except Exception as audit_err:
-        logger.error(f"Failed to write audit log for sync: {audit_err}")
-        try:
-            db.rollback()
-        except Exception:
-            pass
-
-    # If ALL sources failed, return 502 with the errors
-    if response_data.get("status") == "error" and response_data.get("sources_succeeded", 0) == 0:
-        logger.error(f"All sync sources failed")
-        return JSONResponse(
-            status_code=502,
-            content={
-                "status": "error",
-                "degraded": True,
-                "detail": "All feed sources failed",
-                "results": response_data.get("results", []),
-                "total_items_added": 0,
-            }
-        )
-
-    # Return 200 for success or partial success (degraded)
-    return response_data
+    return {"status": "processing", "task_id": task.id}
 
 
 @router.get("/feed/summary")

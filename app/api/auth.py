@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.db.models import User, Organization, AuditLog
 from app.core.security import (
     verify_password, get_password_hash, create_access_token,
+    create_refresh_token, decode_refresh_token,
     get_current_user_id, get_token_payload, get_role_value
 )
 from app.core.config import settings
@@ -46,9 +47,14 @@ class RegisterRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     expires_in: int
     user: dict
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 class UserResponse(BaseModel):
@@ -111,6 +117,7 @@ async def login(
     }
 
     access_token = create_access_token(token_data)
+    refresh_token = create_refresh_token(token_data)
 
     # Log the login
     audit_log = AuditLog(
@@ -127,6 +134,7 @@ async def login(
 
     return TokenResponse(
         access_token=access_token,
+        refresh_token=refresh_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         user={
             "id": user.id,
@@ -211,7 +219,7 @@ async def register(
     db.add(audit_log)
     db.commit()
 
-    # Create token
+    # Create tokens
     token_data = {
         "sub": str(user.id),
         "email": user.email,
@@ -219,9 +227,11 @@ async def register(
         "org_id": user.organization_id,
     }
     access_token = create_access_token(token_data)
+    refresh_token = create_refresh_token(token_data)
 
     return TokenResponse(
         access_token=access_token,
+        refresh_token=refresh_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         user={
             "id": user.id,
@@ -287,6 +297,72 @@ async def change_password(
     db.commit()
 
     return {"message": "Password changed successfully"}
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_token(
+    request: Request,
+    data: RefreshRequest,
+    db: Session = Depends(get_db)
+):
+    """Exchange a valid refresh token for a new access + refresh token pair."""
+    payload = decode_refresh_token(data.refresh_token)
+
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token payload",
+        )
+
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account is disabled",
+        )
+
+    # Issue fresh token pair
+    token_data = {
+        "sub": str(user.id),
+        "email": user.email,
+        "role": get_role_value(user.role),
+        "org_id": user.organization_id,
+    }
+    new_access_token = create_access_token(token_data)
+    new_refresh_token = create_refresh_token(token_data)
+
+    # Audit log
+    audit_log = AuditLog(
+        user_id=user.id,
+        organization_id=user.organization_id,
+        action="token_refresh",
+        entity_type="user",
+        entity_id=user.id,
+        ip_address=request.client.host if request.client else None,
+    )
+    db.add(audit_log)
+    db.commit()
+
+    return TokenResponse(
+        access_token=new_access_token,
+        refresh_token=new_refresh_token,
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user={
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": get_role_value(user.role),
+            "organization_id": user.organization_id,
+            "organization_name": user.organization.name,
+        }
+    )
 
 
 @router.post("/logout")

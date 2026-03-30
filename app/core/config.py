@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # JWT Settings
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes (short-lived access tokens)
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # 7 days (long-lived refresh tokens)
     
     # Vector DB (Qdrant)
     QDRANT_HOST: str = "qdrant"

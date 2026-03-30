@@ -38,10 +38,15 @@ class RBACChecker:
         self.required_role = required_role
     
     async def __call__(
-        self, 
+        self,
         credentials: HTTPAuthorizationCredentials = Depends(security)
     ) -> dict:
         payload = decode_token(credentials.credentials)
+        if payload.get("type") == "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh tokens cannot be used for API access",
+            )
         user_role = Role(payload.get("role", "viewer"))
         
         if not has_permission(user_role, self.required_role):
@@ -65,7 +70,12 @@ async def get_current_user_context(
 ) -> dict:
     """Get current user context including org_id and project_id."""
     payload = decode_token(credentials.credentials)
-    
+    if payload.get("type") == "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh tokens cannot be used for API access",
+        )
+
     # Extract user_id with fallback for different token formats
     user_id_raw = payload.get("sub") or payload.get("user_id") or payload.get("id")
     if user_id_raw is None:

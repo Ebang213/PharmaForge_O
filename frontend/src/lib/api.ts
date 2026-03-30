@@ -63,6 +63,7 @@ api.interceptors.response.use(
         if (error.response?.status === 401) {
             // Clear auth and redirect to login on 401
             sessionStorage.removeItem('pharmaforge_token');
+            sessionStorage.removeItem('pharmaforge_refresh_token');
             sessionStorage.removeItem('pharmaforge_user');
             window.location.href = '/login';
         }
@@ -87,7 +88,8 @@ export const authApi = {
 
     me: () => api.get('/api/auth/me'),
 
-    refreshToken: () => api.post('/api/auth/refresh'),
+    refreshToken: (refreshToken: string) =>
+        api.post('/api/auth/refresh', { refresh_token: refreshToken }),
 };
 
 // DSCSA / EPCIS API

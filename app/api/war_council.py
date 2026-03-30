@@ -14,6 +14,10 @@ from app.db.models import WarCouncilSession, WarCouncilResponse, AuditLog, Vendo
 from app.core.rbac import require_operator, get_current_user_context
 from app.services.llm_provider import generate_war_council_response
 from app.core.security import get_role_value
+from app.core.logging import get_logger
+from app.core.metrics import WAR_COUNCIL_QUERIES_TOTAL
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/war-council", tags=["War Council"])
 
@@ -141,7 +145,19 @@ async def query_war_council(
     )
     db.add(audit_log)
     db.commit()
-    
+
+    WAR_COUNCIL_QUERIES_TOTAL.inc()
+    logger.info(
+        "War Council query executed",
+        extra={
+            "service": "war_council",
+            "event": "war_council_query",
+            "session_id": session.id,
+            "user_id": user_id,
+            "org_id": org_id,
+        },
+    )
+
     return WarCouncilResult(
         session_id=session.id,
         response_id=response.id,

@@ -23,7 +23,7 @@ export default function Login() {
 
         try {
             const response = await authApi.login(formData.email, formData.password);
-            login(response.data.access_token, response.data.user);
+            login(response.data.access_token, response.data.user, response.data.refresh_token);
             // Redirect to Risk Intelligence Loop (Mission Control) after successful auth
             navigate('/mission-control', { replace: true });
         } catch (err: any) {

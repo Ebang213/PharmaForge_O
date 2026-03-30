@@ -28,7 +28,7 @@ interface User {
 interface AuthContextType {
     user: User | null;
     token: string | null;
-    login: (token: string, user: User) => void;
+    login: (token: string, user: User, refreshToken?: string) => void;
     logout: () => void;
     isAuthenticated: boolean;
 }
@@ -62,17 +62,21 @@ function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
     }, []);
 
-    const login = (newToken: string, newUser: User) => {
+    const login = (newToken: string, newUser: User, refreshToken?: string) => {
         setToken(newToken);
         setUser(newUser);
         sessionStorage.setItem('pharmaforge_token', newToken);
         sessionStorage.setItem('pharmaforge_user', JSON.stringify(newUser));
+        if (refreshToken) {
+            sessionStorage.setItem('pharmaforge_refresh_token', refreshToken);
+        }
     };
 
     const logout = () => {
         setToken(null);
         setUser(null);
         sessionStorage.removeItem('pharmaforge_token');
+        sessionStorage.removeItem('pharmaforge_refresh_token');
         sessionStorage.removeItem('pharmaforge_user');
     };
 

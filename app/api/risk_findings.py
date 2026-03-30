@@ -15,13 +15,14 @@ from sqlalchemy import desc
 
 from app.db.session import get_db
 from app.db.models import (
-    Evidence, EvidenceStatus, AuditLog, Vendor, WatchtowerItem, WatchtowerAlert, Facility,
+    Evidence, EvidenceStatus, AuditLog, Vendor, WatchtowerItem, WatchtowerAlert,
     WorkflowRun, WorkflowRunStatus, RiskFindingRecord, ActionPlanRecord,
     WatchtowerSyncStatus
 )
 from app.core.rbac import require_viewer, require_operator
-from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.metrics import AUDIT_PACKET_EXPORTS_TOTAL
+from app.core.rate_limit import limiter
 
 logger = get_logger(__name__)
 
@@ -552,8 +553,16 @@ async def run_findings_extraction(
     db.add(audit_log)
     db.commit()
     
-    logger.info(f"Generated {len(findings)} findings for evidence {evidence_id}")
-    
+    logger.info(
+        "Findings extracted",
+        extra={
+            "service": "risk_findings",
+            "event": "findings_extraction",
+            "evidence_id": evidence_id,
+            "findings_count": len(findings),
+        },
+    )
+
     return FindingsRunResponse(
         evidence_id=evidence_id,
         findings=[RiskFinding(**f) for f in findings],
@@ -749,7 +758,8 @@ async def generate_action_plan_endpoint(
     )
 
 
-@router.post("/workflow/run", response_model=WorkflowRunResponse)
+@router.post("/workflow/run")
+@limiter.limit("10/minute")
 async def run_complete_workflow(
     request: Request,
     evidence_id: int = Query(..., description="Evidence document ID"),
@@ -757,24 +767,21 @@ async def run_complete_workflow(
     db: Session = Depends(get_db)
 ):
     """
-    Run the complete Golden Workflow end-to-end:
-    1. Validate evidence is processed
-    2. Generate findings
-    3. Generate correlation
-    4. Generate action plan
-    5. Persist everything to DB with workflow_run_id
-    
-    This creates a complete, auditable workflow run that can be exported.
+    Run the complete Golden Workflow end-to-end.
+
+    Validates the evidence, creates a WorkflowRun record, then enqueues a
+    Celery task that performs the heavy work (findings → correlation → action
+    plan).  Poll GET /api/tasks/{task_id} for progress.
     """
     org_id = user_context["org_id"]
     user_id = int(user_context["sub"])
-    
+
     # Get evidence
     evidence = db.query(Evidence).filter(
         Evidence.id == evidence_id,
         Evidence.organization_id == org_id
     ).first()
-    
+
     if not evidence:
         raise HTTPException(status_code=404, detail="Evidence not found")
 
@@ -801,7 +808,7 @@ async def run_complete_workflow(
             status_code=400,
             detail="Evidence has no extracted text. Upload a PDF or TXT file with content."
         )
-    
+
     # Create workflow run record
     workflow_run = WorkflowRun(
         organization_id=org_id,
@@ -810,94 +817,30 @@ async def run_complete_workflow(
         status=WorkflowRunStatus.RUNNING
     )
     db.add(workflow_run)
-    db.flush()  # Get the ID
-    
-    try:
-        # 1. Generate findings
-        findings_data = _generate_mock_findings(evidence.extracted_text, evidence_id)
-        
-        # Persist findings to DB
-        for f in findings_data:
-            finding_record = RiskFindingRecord(
-                workflow_run_id=workflow_run.id,
-                evidence_id=evidence_id,
-                title=f.get("title", ""),
-                description=f.get("description", ""),
-                severity=f.get("severity", "MEDIUM"),
-                cfr_refs=f.get("cfr_refs", []),
-                citations=f.get("citations", []),
-                entities=f.get("entities", [])
-            )
-            db.add(finding_record)
-        
-        workflow_run.findings_count = len(findings_data)
-        
-        # 2. Generate correlation
-        correlation = _generate_correlation(evidence, findings_data, db, org_id)
-        workflow_run.correlations_count = len(correlation.get("vendor_matches", []))
-        
-        # 3. Generate action plan
-        plan_data = _generate_action_plan(findings_data, None, correlation.get("vendor_matches", []))
-        
-        # Persist action plan to DB
-        action_plan_record = ActionPlanRecord(
-            workflow_run_id=workflow_run.id,
-            evidence_id=evidence_id,
-            rationale=plan_data.get("rationale", ""),
-            actions=plan_data.get("top_actions", []),
-            owners=plan_data.get("owners", []),
-            deadlines=plan_data.get("deadlines", []),
-            correlation_data=correlation
-        )
-        db.add(action_plan_record)
-        
-        workflow_run.actions_count = len(plan_data.get("top_actions", []))
-        
-        # Mark workflow as success
-        workflow_run.status = WorkflowRunStatus.SUCCESS
-        workflow_run.completed_at = datetime.now(timezone.utc)
-        
-        # Create audit log entry
-        audit_log = AuditLog(
-            organization_id=org_id,
-            user_id=user_id,
-            action="workflow_run_completed",
-            entity_type="workflow_run",
-            entity_id=workflow_run.id,
-            details={
-                "evidence_id": evidence_id,
-                "findings_count": workflow_run.findings_count,
-                "correlations_count": workflow_run.correlations_count,
-                "actions_count": workflow_run.actions_count
-            },
-            ip_address=request.client.host if request.client else None
-        )
-        db.add(audit_log)
-        
-        db.commit()
-        
-        logger.info(f"Workflow run {workflow_run.id} completed successfully for evidence {evidence_id}")
-        
-        return WorkflowRunResponse(
-            workflow_run_id=workflow_run.id,
-            evidence_id=evidence_id,
-            status="success",
-            findings_count=workflow_run.findings_count,
-            correlations_count=workflow_run.correlations_count,
-            actions_count=workflow_run.actions_count,
-            created_at=workflow_run.created_at.isoformat() if workflow_run.created_at else datetime.now(timezone.utc).isoformat(),
-            message=f"Workflow completed: {workflow_run.findings_count} findings, {workflow_run.actions_count} actions"
-        )
-        
-    except Exception as e:
-        # Mark workflow as failed
-        workflow_run.status = WorkflowRunStatus.FAILED
-        workflow_run.error_message = str(e)
-        workflow_run.completed_at = datetime.now(timezone.utc)
-        db.commit()
-        
-        logger.error(f"Workflow run {workflow_run.id} failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Workflow failed: {str(e)}")
+    db.commit()
+    db.refresh(workflow_run)
+
+    # Enqueue the heavy work as a background task
+    from app.tasks.workflow_tasks import run_complete_workflow as workflow_task
+    task = workflow_task.delay(evidence_id, org_id, user_id, workflow_run.id)
+
+    logger.info(
+        "Workflow run enqueued",
+        extra={
+            "service": "risk_findings",
+            "event": "workflow_enqueued",
+            "workflow_run_id": workflow_run.id,
+            "evidence_id": evidence_id,
+            "task_id": task.id,
+        },
+    )
+
+    return {
+        "status": "processing",
+        "task_id": task.id,
+        "workflow_run_id": workflow_run.id,
+        "evidence_id": evidence_id,
+    }
 
 
 @router.get("/workflow/runs")
@@ -1359,7 +1302,17 @@ async def export_audit_packet(
     db.add(export_audit_log)
     db.commit()
 
-    logger.info(f"Exported audit packet for evidence {evidence_id}, workflow run {workflow_run.id}")
+    AUDIT_PACKET_EXPORTS_TOTAL.inc()
+    logger.info(
+        "Audit packet exported",
+        extra={
+            "service": "risk_findings",
+            "event": "audit_packet_export",
+            "workflow_run_id": workflow_run.id,
+            "evidence_id": evidence_id,
+            "findings_count": len(findings),
+        },
+    )
 
     # Return as downloadable file
     return Response(

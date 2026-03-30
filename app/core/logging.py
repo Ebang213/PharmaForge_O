@@ -1,14 +1,29 @@
 """
 Structured logging configuration with sensitive data scrubbing.
+
+Each log entry includes:
+- timestamp (ISO 8601 UTC)
+- service (module name, e.g. "watchtower")
+- event (action name, e.g. "feed_sync")
+- level (INFO, WARNING, ERROR, etc.)
+- request_id (from X-Request-ID header, if available)
+
+Additional fields are passed through as-is for domain-specific context.
 """
 import logging
 import re
 import sys
+import contextvars
 from datetime import datetime, timezone
 import json
 from typing import Optional
 
 from app.core.config import settings
+
+# Context variable for per-request tracking
+request_id_ctx: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "request_id", default=None
+)
 
 # Patterns that should be redacted from log output
 _SENSITIVE_PATTERNS = re.compile(
@@ -20,7 +35,7 @@ _SENSITIVE_PATTERNS = re.compile(
 _SENSITIVE_KEYS = frozenset({
     "password", "new_password", "current_password", "hashed_password",
     "secret", "secret_key", "api_key", "apikey", "token", "access_token",
-    "authorization", "credential", "ssn",
+    "refresh_token", "authorization", "credential", "ssn",
 })
 
 
@@ -48,20 +63,25 @@ class StructuredFormatter(logging.Formatter):
         log_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
-            "logger": record.name,
+            "service": getattr(record, "service", record.name),
+            "event": getattr(record, "event", record.funcName or "log"),
             "message": _scrub_message(record.getMessage()),
         }
 
-        if hasattr(record, "user_id"):
-            log_entry["user_id"] = record.user_id
-        if hasattr(record, "org_id"):
-            log_entry["org_id"] = record.org_id
-        if hasattr(record, "action"):
-            log_entry["action"] = record.action
-        if hasattr(record, "entity_type"):
-            log_entry["entity_type"] = record.entity_type
-        if hasattr(record, "entity_id"):
-            log_entry["entity_id"] = record.entity_id
+        # Inject request_id from context var if available
+        rid = request_id_ctx.get(None)
+        if rid:
+            log_entry["request_id"] = rid
+
+        # Propagate well-known extra fields
+        for key in (
+            "user_id", "org_id", "action", "entity_type", "entity_id",
+            "source", "items_processed", "duration_seconds", "evidence_id",
+            "workflow_run_id", "findings_count", "session_id",
+        ):
+            val = getattr(record, key, None)
+            if val is not None:
+                log_entry[key] = val
 
         if record.exc_info:
             log_entry["exception"] = _scrub_message(self.formatException(record.exc_info))
