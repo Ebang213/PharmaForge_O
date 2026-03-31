@@ -109,19 +109,19 @@ def extract_text(file_path: str, content_type: str) -> str:
 def extract_pdf_text(file_path: str) -> str:
     """Extract text from PDF file."""
     try:
-        import PyPDF2
-        
+        from pypdf import PdfReader
+
         text_parts = []
         with open(file_path, 'rb') as f:
-            reader = PyPDF2.PdfReader(f)
+            reader = PdfReader(f)
             for page_num, page in enumerate(reader.pages):
                 page_text = page.extract_text()
                 if page_text:
                     text_parts.append(f"[Page {page_num + 1}]\n{page_text}")
-        
+
         return "\n\n".join(text_parts)
     except ImportError:
-        logger.warning("PyPDF2 not installed, returning empty text")
+        logger.warning("pypdf not installed, returning empty text")
         return ""
 
 
