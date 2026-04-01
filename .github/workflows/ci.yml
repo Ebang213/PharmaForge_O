@@ -86,10 +86,13 @@ jobs:
           pip install pip-audit
           pip-audit --desc --strict -r requirements.txt
 
-      - name: Run Trivy filesystem scan
+      - name: Install Trivy
         run: |
-          # Install Trivy directly (avoids trivy-action tag-pinning issues)
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
           trivy --version
-          # Scan only for dependency vulnerabilities and secrets (skip IaC misconfig)
-          trivy fs --scanners vuln,secret --severity HIGH,CRITICAL --skip-dirs infra --exit-code 1 .
+
+      - name: "Trivy: dependency vulnerability scan"
+        run: trivy fs --scanners vuln --severity HIGH,CRITICAL --skip-dirs infra --exit-code 1 .
+
+      - name: "Trivy: secret leak scan"
+        run: trivy fs --scanners secret --severity HIGH,CRITICAL --skip-dirs infra --exit-code 1 .
