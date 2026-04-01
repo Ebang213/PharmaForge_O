@@ -84,7 +84,7 @@ jobs:
       - name: Run pip-audit
         run: |
           pip install pip-audit
-          pip-audit -r requirements.txt
+          pip-audit --desc --strict -r requirements.txt
 
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@master
