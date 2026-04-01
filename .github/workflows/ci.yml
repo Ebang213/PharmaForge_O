@@ -87,9 +87,10 @@ jobs:
           pip-audit --desc --strict -r requirements.txt
 
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: "fs"
           scan-ref: "."
+          scanners: "vuln,secret"
           severity: "HIGH,CRITICAL"
           exit-code: "1"
