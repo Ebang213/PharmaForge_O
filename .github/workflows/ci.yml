@@ -86,31 +86,7 @@ jobs:
           pip install pip-audit
           pip-audit --desc --strict -r requirements.txt
 
-      - name: Install Trivy
+      - name: Run Trivy filesystem scan
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-          trivy --version
-
-      - name: "Trivy: dependency vulnerability scan"
-        run: |
-          # Output results to JSON for annotation, then check exit code
-          trivy fs --scanners vuln --severity HIGH,CRITICAL --skip-dirs infra --format json --output trivy-vuln.json . || true
-          # Emit findings as annotations so they're visible via API
-          python3 -c "
-          import json, sys
-          data = json.load(open('trivy-vuln.json'))
-          found = False
-          for result in data.get('Results', []):
-              for vuln in result.get('Vulnerabilities', []):
-                  found = True
-                  pkg = vuln.get('PkgName','?')
-                  ver = vuln.get('InstalledVersion','?')
-                  fix = vuln.get('FixedVersion','?')
-                  vid = vuln.get('VulnerabilityID','?')
-                  sev = vuln.get('Severity','?')
-                  print(f'::error title=Trivy {sev}: {vid}::{pkg}=={ver} (fix: {fix})')
-          sys.exit(1 if found else 0)
-          "
-
-      - name: "Trivy: secret leak scan"
-        run: trivy fs --scanners secret --severity HIGH,CRITICAL --skip-dirs infra --exit-code 1 .
+          trivy fs --scanners vuln,secret --severity HIGH,CRITICAL --skip-dirs infra --exit-code 1 .
