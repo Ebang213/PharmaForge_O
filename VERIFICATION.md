@@ -1,6 +1,19 @@
-# Verification Checklist - Watchtower & DSCSA/EPCIS
+# Verification Checklist - PharmaForge OS
 
-This document provides verification steps for the Watchtower live feed and DSCSA/EPCIS validation functionality.
+> **Last validated:** 2026-04-03 — All phases PASS. See [FULL_PRODUCT_VALIDATION_REPORT.md](FULL_PRODUCT_VALIDATION_REPORT.md) for full details.
+
+This document provides verification steps for all product areas.
+
+---
+
+## Known Fixes Applied (2026-04-03)
+
+1. **Celery worker image** — Rebuilt to fix missing `PyJWT` (`python-jose` was installed instead)
+2. **Upload directory permissions** — Dockerfile now pre-creates subdirs; `entrypoint.sh` ensures correct layout at startup
+3. **EPCIS datetime serialization** — `_make_json_safe()` added to `app/api/dscsa.py` to convert datetime → ISO string before JSON storage
+4. **DSCSA enum `.value` bug** — `_enum_val()` helper added to safely handle string/enum values from DB
+5. **Migration stamp** — `006_watchtower_sync_columns` stamped as applied (columns already existed)
+6. **Celery health check** — Overridden in `docker-compose.yml` with `celery inspect ping` (was incorrectly using `curl localhost:8000`)
 
 ---
 

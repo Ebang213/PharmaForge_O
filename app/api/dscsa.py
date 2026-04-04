@@ -26,6 +26,26 @@ from app.services.epcis_validate import validate_epcis_events, detect_chain_brea
 router = APIRouter(prefix="/api/dscsa", tags=["DSCSA"])
 
 
+def _make_json_safe(obj):
+    """Recursively convert datetime objects to ISO strings for JSON storage."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: _make_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_make_json_safe(i) for i in obj]
+    return obj
+
+
+def _enum_val(val, default="pending"):
+    """Safely get string value from enum or string."""
+    if val is None:
+        return default
+    if hasattr(val, 'value'):
+        return val.value
+    return str(val)
+
+
 # ============= SCHEMAS =============
 
 class UploadResponse(BaseModel):
@@ -86,7 +106,7 @@ async def list_uploads(
             id=u.id,
             filename=u.filename,
             file_size=u.file_size or 0,
-            validation_status=u.validation_status.value if u.validation_status else "pending",
+            validation_status=_enum_val(u.validation_status),
             event_count=u.event_count or 0,
             chain_break_count=u.chain_break_count or 0,
             created_at=u.created_at,
@@ -171,7 +191,7 @@ async def upload_epcis_file(
             quantity_list=event_data.get("quantityList"),
             source_list=event_data.get("sourceList"),
             destination_list=event_data.get("destinationList"),
-            raw_event=event_data,
+            raw_event=_make_json_safe(event_data),
         )
         db.add(event)
     
@@ -224,7 +244,7 @@ async def upload_epcis_file(
         entity_id=upload.id,
         details={
             "filename": file.filename,
-            "status": upload.validation_status.value,
+            "status": _enum_val(upload.validation_status),
             "events": len(events),
             "issues": len(all_issues),
         },
@@ -238,7 +258,7 @@ async def upload_epcis_file(
         id=upload.id,
         filename=upload.filename,
         file_size=upload.file_size or 0,
-        validation_status=upload.validation_status.value,
+        validation_status=_enum_val(upload.validation_status),
         event_count=upload.event_count or 0,
         chain_break_count=upload.chain_break_count or 0,
         created_at=upload.created_at,
@@ -248,7 +268,7 @@ async def upload_epcis_file(
             {
                 "id": i.id,
                 "type": i.issue_type,
-                "severity": i.severity.value if i.severity else "medium",
+                "severity": _enum_val(i.severity, "medium"),
                 "field_path": i.field_path,
                 "message": i.message,
                 "event_index": i.event_index,
@@ -318,7 +338,7 @@ async def get_upload_detail(
         id=upload.id,
         filename=upload.filename,
         file_size=upload.file_size or 0,
-        validation_status=upload.validation_status.value if upload.validation_status else "pending",
+        validation_status=_enum_val(upload.validation_status),
         event_count=upload.event_count or 0,
         chain_break_count=upload.chain_break_count or 0,
         created_at=upload.created_at,
@@ -328,7 +348,7 @@ async def get_upload_detail(
             {
                 "id": i.id,
                 "type": i.issue_type,
-                "severity": i.severity.value if i.severity else "medium",
+                "severity": _enum_val(i.severity, "medium"),
                 "field_path": i.field_path,
                 "message": i.message,
                 "event_index": i.event_index,
@@ -373,7 +393,7 @@ async def download_audit_packet(
             "file_hash": upload.file_hash,
             "file_size": upload.file_size,
             "uploaded_at": upload.created_at.isoformat(),
-            "validation_status": upload.validation_status.value if upload.validation_status else "pending",
+            "validation_status": _enum_val(upload.validation_status),
             "validated_at": upload.validated_at.isoformat() if upload.validated_at else None,
         },
         "validation_summary": upload.validation_results,
@@ -397,7 +417,7 @@ async def download_audit_packet(
         "issues": [
             {
                 "type": i.issue_type,
-                "severity": i.severity.value if i.severity else "medium",
+                "severity": _enum_val(i.severity, "medium"),
                 "field_path": i.field_path,
                 "message": i.message,
                 "event_index": i.event_index,
