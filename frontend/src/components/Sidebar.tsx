@@ -1,21 +1,17 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import {
-    Shield, FileCheck, MessageSquare, Users, Building2,
-    ScrollText, Settings, LogOut, ShoppingCart, AlertTriangle, UserCog,
-    Target, GitBranch
+    Shield, FileCheck, Building2,
+    ScrollText, Settings, LogOut, Bell, UserCog,
+    LayoutDashboard
 } from 'lucide-react';
 import './Sidebar.css';
 
 const navItems = [
-    { path: '/mission-control', icon: Target, label: 'Risk Intelligence Loop' },
-    { path: '/workflow', icon: GitBranch, label: 'Golden Workflow' },
-    { path: '/watchtower', icon: AlertTriangle, label: 'Supply Chain Risk Radar' },
-    { path: '/dscsa', icon: FileCheck, label: 'DSCSA / EPCIS' },
-    { path: '/copilot', icon: MessageSquare, label: 'Compliance Copilot' },
-    { path: '/war-council', icon: Users, label: 'Decision Council' },
-    { path: '/vendors', icon: Building2, label: 'Vendors' },
-    { path: '/sourcing', icon: ShoppingCart, label: 'Sourcing' },
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/transactions', icon: FileCheck, label: 'Transactions' },
+    { path: '/trading-partners', icon: Building2, label: 'Trading Partners' },
+    { path: '/alerts', icon: Bell, label: 'Alerts' },
     { path: '/audit', icon: ScrollText, label: 'Audit Log' },
     { path: '/settings', icon: Settings, label: 'Settings' },
 ];
@@ -40,7 +36,7 @@ export default function Sidebar() {
                     <Shield size={28} />
                     <div className="logo-text">
                         <span className="logo-title">PharmaForge</span>
-                        <span className="logo-subtitle">OS</span>
+                        <span className="logo-subtitle">DSCSA</span>
                     </div>
                 </div>
             </div>

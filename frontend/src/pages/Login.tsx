@@ -25,7 +25,7 @@ export default function Login() {
             const response = await authApi.login(formData.email, formData.password);
             login(response.data.access_token, response.data.user, response.data.refresh_token);
             // Redirect to Risk Intelligence Loop (Mission Control) after successful auth
-            navigate('/mission-control', { replace: true });
+            navigate('/dashboard', { replace: true });
         } catch (err: any) {
             const detail = err.response?.data?.detail;
             if (typeof detail === 'string') {
@@ -46,8 +46,8 @@ export default function Login() {
                     <div className="login-logo">
                         <Shield size={40} />
                     </div>
-                    <h1>PharmaForge OS</h1>
-                    <p>Operating System for Virtual Pharma</p>
+                    <h1>PharmaForge DSCSA</h1>
+                    <p>DSCSA compliance for independent pharmacies. Upload, validate, and prove your compliance before the November 2026 deadline.</p>
                 </div>
 
                 <form className="login-form" onSubmit={handleSubmit}>

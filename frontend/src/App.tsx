@@ -7,6 +7,13 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy-loaded pages (code-split at route level)
 const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Transactions = lazy(() => import('./pages/Transactions'));
+const TradingPartners = lazy(() => import('./pages/TradingPartners'));
+const Alerts = lazy(() => import('./pages/Alerts'));
+const AuditLog = lazy(() => import('./pages/AuditLog'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Vendors = lazy(() => import('./pages/Vendors'));
 const MissionControl = lazy(() => import('./pages/MissionControl'));
 const Workflow = lazy(() => import('./pages/Workflow'));
 const Watchtower = lazy(() => import('./pages/Watchtower'));
@@ -84,7 +91,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
         return (
             <div className="loading-screen">
                 <div className="loading-spinner"></div>
-                <p>Loading PharmaForge OS...</p>
+                <p>Loading PharmaForge DSCSA...</p>
             </div>
         );
     }
@@ -149,15 +156,64 @@ export default function App() {
                             {/* Public Route */}
                             <Route path="/login" element={<Login />} />
 
-                            {/* Protected Routes */}
+                            {/* MVP Primary Routes */}
                             <Route path="/" element={
                                 <ProtectedRoute>
                                     <MainLayout>
-                                        <Navigate to="/mission-control" replace />
+                                        <Navigate to="/dashboard" replace />
                                     </MainLayout>
                                 </ProtectedRoute>
                             } />
 
+                            <Route path="/dashboard" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <Dashboard />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
+
+                            <Route path="/transactions" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <Transactions />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
+
+                            <Route path="/trading-partners" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <TradingPartners />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
+
+                            <Route path="/alerts" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <Alerts />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
+
+                            <Route path="/audit" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <AuditLog />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
+
+                            <Route path="/settings" element={
+                                <ProtectedRoute>
+                                    <MainLayout>
+                                        <Settings />
+                                    </MainLayout>
+                                </ProtectedRoute>
+                            } />
+
+                            {/* Legacy Routes (hidden from nav, accessible via direct URL) */}
                             <Route path="/mission-control" element={
                                 <ProtectedRoute>
                                     <MainLayout>
@@ -209,7 +265,7 @@ export default function App() {
                             <Route path="/vendors" element={
                                 <ProtectedRoute>
                                     <MainLayout>
-                                        <PlaceholderPage title="Vendors" />
+                                        <Vendors />
                                     </MainLayout>
                                 </ProtectedRoute>
                             } />
@@ -218,22 +274,6 @@ export default function App() {
                                 <ProtectedRoute>
                                     <MainLayout>
                                         <PlaceholderPage title="Sourcing" />
-                                    </MainLayout>
-                                </ProtectedRoute>
-                            } />
-
-                            <Route path="/audit" element={
-                                <ProtectedRoute>
-                                    <MainLayout>
-                                        <PlaceholderPage title="Audit Log" />
-                                    </MainLayout>
-                                </ProtectedRoute>
-                            } />
-
-                            <Route path="/settings" element={
-                                <ProtectedRoute>
-                                    <MainLayout>
-                                        <PlaceholderPage title="Settings" />
                                     </MainLayout>
                                 </ProtectedRoute>
                             } />
@@ -247,7 +287,7 @@ export default function App() {
                             } />
 
                             {/* Catch-all redirect */}
-                            <Route path="*" element={<Navigate to="/mission-control" replace />} />
+                            <Route path="*" element={<Navigate to="/dashboard" replace />} />
                         </Routes>
                     </Suspense>
                 </AuthProvider>
