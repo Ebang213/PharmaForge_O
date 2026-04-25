@@ -281,13 +281,26 @@ export interface ApiResponse<T> {
 export interface EPCISUpload {
     id: number;
     filename: string;
+    file_size: number;
     validation_status: 'valid' | 'invalid' | 'chain_break' | 'pending';
     event_count: number;
     chain_break_count: number;
     issues?: EPCISIssue[];
-    events?: any[];
-    validation_results?: any;
+    events?: EPCISEvent[];
+    validation_results?: Record<string, unknown>;
     created_at: string;
+    validated_at: string | null;
+}
+
+export interface EPCISEvent {
+    id?: number;
+    event_type: string;
+    action: string | null;
+    event_time: string | null;
+    biz_step: string | null;
+    epc_list: string[] | null;
+    biz_location?: string | null;
+    read_point?: string | null;
 }
 
 export interface EPCISIssue {

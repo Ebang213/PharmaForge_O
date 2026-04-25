@@ -5,7 +5,6 @@ from typing import List, Optional
 from datetime import datetime, timezone
 import hashlib
 import os
-import json
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Request
 from fastapi.responses import JSONResponse
@@ -385,18 +384,30 @@ async def download_audit_packet(
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
     
+    # Fetch audit log entries for this upload
+    audit_log_entries = db.query(AuditLog).filter(
+        AuditLog.entity_type == "epcis_upload",
+        AuditLog.entity_id == upload.id,
+        AuditLog.organization_id == user_context["org_id"],
+    ).order_by(AuditLog.timestamp).all()
+
     audit_packet = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "upload": {
             "id": upload.id,
             "filename": upload.filename,
+            "content_type": upload.content_type,
             "file_hash": upload.file_hash,
             "file_size": upload.file_size,
             "uploaded_at": upload.created_at.isoformat(),
             "validation_status": _enum_val(upload.validation_status),
             "validated_at": upload.validated_at.isoformat() if upload.validated_at else None,
         },
-        "validation_summary": upload.validation_results,
+        "validation_summary": upload.validation_results or {
+            "total_events": upload.event_count or 0,
+            "issues_count": len(upload.issues),
+            "chain_breaks_count": upload.chain_break_count or 0,
+        },
         "events": [
             {
                 "event_type": e.event_type,
@@ -424,6 +435,16 @@ async def download_audit_packet(
                 "suggested_fix": i.suggested_fix,
             }
             for i in upload.issues
+        ],
+        "audit_log_entries": [
+            {
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                "action": log.action,
+                "user_id": log.user_id,
+                "details": log.details,
+                "ip_address": log.ip_address,
+            }
+            for log in audit_log_entries
         ],
     }
     
