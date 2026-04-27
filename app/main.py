@@ -87,10 +87,12 @@ from app.api.admin import router as admin_router
 from app.api.evidence import router as evidence_router
 from app.api.risk_findings import router as risk_findings_router
 from app.api.audit_packet import router as audit_packet_router
+from app.api.trading_partners import router as trading_partners_router
 
 app.include_router(auth_router)
 app.include_router(orgs_router)
 app.include_router(vendors_router)
+app.include_router(trading_partners_router)
 app.include_router(watchtower_router)
 app.include_router(dscsa_router)
 app.include_router(copilot_router)

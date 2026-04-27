@@ -222,9 +222,18 @@ class Vendor(Base):
     last_audit_date = Column(DateTime(timezone=True))
     notes = Column(Text)
     extra_data = Column(JSON, default={})
+    # DSCSA trading partner fields (migration 007)
+    gln = Column(String(20))
+    dea_number = Column(String(20))
+    state_license_number = Column(String(50))
+    state = Column(String(50))
+    contact_name = Column(String(255))
+    partner_status = Column(String(50), default='active')  # active, pending_review, inactive
+    verification_status = Column(String(50), default='not_verified')  # verified, incomplete, expired, not_verified
+    last_verified_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+
     # Relationships
     organization = relationship("Organization", back_populates="vendors")
     facilities = relationship("Facility", back_populates="vendor")

@@ -282,6 +282,22 @@ export const watchtowerApi = {
     health: () => api.get('/api/watchtower/health'),
 };
 
+// Trading Partners API (DSCSA)
+export const tradingPartnersApi = {
+    list: (params?: { search?: string; partner_type?: string; status?: string; limit?: number; offset?: number }) =>
+        api.get('/api/trading-partners', { params }),
+
+    get: (id: number) => api.get(`/api/trading-partners/${id}`),
+
+    create: (data: object) => api.post('/api/trading-partners', data),
+
+    update: (id: number, data: object) => api.patch(`/api/trading-partners/${id}`, data),
+
+    delete: (id: number) => api.delete(`/api/trading-partners/${id}`),
+
+    readiness: () => api.get('/api/trading-partners/readiness'),
+};
+
 // Vendors API
 export const vendorsApi = {
     getVendors: () => api.get('/api/vendors'),

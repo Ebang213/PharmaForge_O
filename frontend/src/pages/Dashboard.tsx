@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { dscsaApi, vendorsApi, watchtowerApi } from '../lib/api';
+import { dscsaApi, tradingPartnersApi, watchtowerApi } from '../lib/api';
 import {
     CheckCircle, Circle, Upload, Building2, Bell, Calendar,
     AlertTriangle, FileCheck, Package, ArrowRight
 } from 'lucide-react';
-import type { EPCISUpload } from '../lib/types';
+import type { EPCISUpload, TradingPartnerReadiness } from '../lib/types';
 
 function getDaysUntil(targetDate: string): number {
     const now = new Date();
@@ -15,7 +15,12 @@ function getDaysUntil(targetDate: string): number {
 }
 
 export default function Dashboard() {
-    const [tradingPartnerCount, setTradingPartnerCount] = useState(0);
+    const [partnerReadiness, setPartnerReadiness] = useState<TradingPartnerReadiness>({
+        total_trading_partners: 0,
+        verified_partners: 0,
+        incomplete_partners: 0,
+        readiness_percentage: 0,
+    });
     const [uploads, setUploads] = useState<EPCISUpload[]>([]);
     const [activeAlertCount, setActiveAlertCount] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -26,15 +31,14 @@ export default function Dashboard() {
     }, []);
 
     const loadStats = async () => {
-        const [vendorsResult, uploadsResult, alertsResult] = await Promise.allSettled([
-            vendorsApi.list(),
+        const [readinessResult, uploadsResult, alertsResult] = await Promise.allSettled([
+            tradingPartnersApi.readiness(),
             dscsaApi.epcisList(),
             watchtowerApi.summary(),
         ]);
 
-        if (vendorsResult.status === 'fulfilled') {
-            const data = vendorsResult.value.data;
-            setTradingPartnerCount(data.items?.length ?? (Array.isArray(data) ? data.length : 0));
+        if (readinessResult.status === 'fulfilled') {
+            setPartnerReadiness(readinessResult.value.data);
         }
         if (uploadsResult.status === 'fulfilled') {
             setUploads(uploadsResult.value.data ?? []);
@@ -57,10 +61,10 @@ export default function Dashboard() {
 
     const checklistItems = [
         {
-            label: 'At least one trading partner on file',
-            met: tradingPartnerCount > 0,
+            label: 'At least one verified trading partner',
+            met: partnerReadiness.verified_partners > 0,
             action: '/trading-partners',
-            actionLabel: 'Add Trading Partner',
+            actionLabel: partnerReadiness.total_trading_partners === 0 ? 'Add Trading Partner' : 'Complete Partner Info',
         },
         {
             label: 'EPCIS transaction file uploaded',
@@ -108,7 +112,12 @@ export default function Dashboard() {
                     </div>
                     <div className="content">
                         <h3>Trading Partners</h3>
-                        <div className="value">{tradingPartnerCount}</div>
+                        <div className="value">{partnerReadiness.total_trading_partners}</div>
+                        {partnerReadiness.total_trading_partners > 0 && (
+                            <div style={{ fontSize: 11, color: '#10b981', marginTop: 2 }}>
+                                {partnerReadiness.verified_partners} verified
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="stat-card">

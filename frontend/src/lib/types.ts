@@ -144,6 +144,36 @@ export interface CorrelationResult {
     correlation_timestamp: string;
 }
 
+// Trading Partner types (DSCSA)
+export interface TradingPartner {
+    id: number;
+    name: string;
+    partner_type?: string;
+    status: string;
+    gln?: string;
+    dea_number?: string;
+    state_license_number?: string;
+    state?: string;
+    country?: string;
+    contact_name?: string;
+    contact_email?: string;
+    phone?: string;
+    address?: string;
+    notes?: string;
+    verification_status: string;
+    last_verified_at?: string;
+    missing_fields: string[];
+    created_at: string;
+    updated_at?: string;
+}
+
+export interface TradingPartnerReadiness {
+    total_trading_partners: number;
+    verified_partners: number;
+    incomplete_partners: number;
+    readiness_percentage: number;
+}
+
 // Vendor types
 export interface Vendor {
     id: number;
