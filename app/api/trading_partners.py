@@ -141,6 +141,7 @@ class TradingPartnerResponse(BaseModel):
     verification_status: str
     last_verified_at: Optional[datetime] = None
     missing_fields: List[str] = []
+    data_source: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -183,6 +184,7 @@ def _vendor_to_response(vendor: Vendor) -> TradingPartnerResponse:
         verification_status=vs,
         last_verified_at=vendor.last_verified_at,
         missing_fields=missing,
+        data_source=vendor.data_source,
         created_at=vendor.created_at,
         updated_at=vendor.updated_at,
     )
@@ -282,6 +284,7 @@ async def create_trading_partner(
         contact_phone=data.phone,
         address=data.address,
         notes=data.notes,
+        data_source="user_created",
     )
     db.add(vendor)
 

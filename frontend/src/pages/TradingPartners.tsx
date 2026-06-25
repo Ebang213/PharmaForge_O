@@ -64,6 +64,22 @@ function VerificationBadge({ status, missingFields }: { status: string; missingF
     );
 }
 
+function DemoSourceBadge() {
+    return (
+        <span
+            title="This row was created by demo seeding and should be removed via cleanup script"
+            style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 7px', borderRadius: 10, fontSize: 11, fontWeight: 600,
+                background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8',
+                marginLeft: 6, verticalAlign: 'middle',
+            }}
+        >
+            Demo
+        </span>
+    );
+}
+
 function StatusBadge({ status }: { status: string }) {
     const map: Record<string, { label: string; color: string; bg: string }> = {
         active: { label: 'Active', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)' },
@@ -270,7 +286,10 @@ export default function TradingPartners() {
                                                 <Building2 size={18} style={{ color: 'var(--accent-primary)' }} />
                                             </div>
                                             <div>
-                                                <div style={{ fontWeight: 500, fontSize: 14 }}>{p.name}</div>
+                                                <div style={{ fontWeight: 500, fontSize: 14 }}>
+                                                    {p.name}
+                                                    {p.data_source === 'demo' && <DemoSourceBadge />}
+                                                </div>
                                                 {p.contact_email && (
                                                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{p.contact_email}</div>
                                                 )}

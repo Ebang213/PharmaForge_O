@@ -261,7 +261,8 @@ def seed_demo_data():
                 risk_score=risk,
                 risk_level=level,
                 is_approved=True,
-                contact_email=f"contact@{code.lower()}.com"
+                contact_email=f"contact@{code.lower()}.com",
+                data_source="demo",
             )
             db.add(vendor)
             vendors.append(vendor)

@@ -373,3 +373,208 @@ class TestReadiness:
     def test_readiness_requires_auth(self, client: TestClient):
         resp = client.get("/api/trading-partners/readiness")
         assert resp.status_code == 401
+
+
+# ============= Empty State =============
+
+class TestEmptyState:
+    """Fresh org with no vendors must return 0 trading partners."""
+
+    @pytest.fixture(scope="class")
+    def empty_org(self, db: Session):
+        org = db.query(Organization).filter(Organization.slug == "tp-empty-test").first()
+        if not org:
+            org = Organization(name="Empty TP Test Org", slug="tp-empty-test")
+            db.add(org)
+            db.commit()
+            db.refresh(org)
+        return org
+
+    @pytest.fixture(scope="class")
+    def empty_user(self, db: Session, empty_org: Organization):
+        user = db.query(User).filter(User.email == "tp-empty@pharmaforge.test").first()
+        if not user:
+            user = User(
+                email="tp-empty@pharmaforge.test",
+                hashed_password="$2b$12$fakehashnotusedfortesting000000",
+                full_name="Empty Org User",
+                organization_id=empty_org.id,
+                role="operator",
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        return user
+
+    @pytest.fixture(scope="class")
+    def empty_headers(self, empty_user: User, empty_org: Organization):
+        from datetime import timedelta
+        from app.core.security import create_access_token
+        token = create_access_token(
+            {
+                "sub": str(empty_user.id),
+                "email": empty_user.email,
+                "role": "operator",
+                "org_id": empty_org.id,
+            },
+            expires_delta=timedelta(hours=1),
+        )
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_fresh_org_has_zero_partners(self, client: TestClient, empty_headers: dict, db: Session, empty_org: Organization):
+        # Confirm no vendors exist for this org
+        count = db.query(Vendor).filter(Vendor.organization_id == empty_org.id).count()
+        assert count == 0, "Test setup error: org is not empty"
+
+        resp = client.get("/api/trading-partners", headers=empty_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 0
+        assert data["items"] == []
+
+    def test_readiness_with_zero_partners(self, client: TestClient, empty_headers: dict):
+        resp = client.get("/api/trading-partners/readiness", headers=empty_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_trading_partners"] == 0
+        assert data["verified_partners"] == 0
+        assert data["incomplete_partners"] == 0
+        assert data["readiness_percentage"] == 0
+
+
+# ============= Provenance =============
+
+class TestProvenance:
+    """New trading partners created via the API must carry data_source=user_created."""
+
+    def test_create_sets_user_created_source(self, client: TestClient, auth_headers: dict):
+        resp = client.post(
+            "/api/trading-partners",
+            json={"name": "Provenance Test Partner", "partner_type": "MANUFACTURER", "status": "active"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data.get("data_source") == "user_created"
+
+    def test_create_full_verified_source(self, client: TestClient, auth_headers: dict):
+        resp = client.post(
+            "/api/trading-partners",
+            json={
+                "name": "Provenance Verified Partner",
+                "partner_type": "WHOLESALE_DISTRIBUTOR",
+                "gln": "0123456789999",
+                "contact_email": "ops@verifiedpartner.com",
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data.get("data_source") == "user_created"
+        assert data["verification_status"] == "verified"
+
+    def test_list_includes_data_source(self, client: TestClient, auth_headers: dict):
+        resp = client.get("/api/trading-partners", headers=auth_headers)
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        for item in items:
+            assert "data_source" in item
+
+
+# ============= Cleanup Script =============
+
+class TestCleanupScript:
+    """Verify cleanup_sample_partners.py behaviour without invoking it as a subprocess."""
+
+    @pytest.fixture(scope="class")
+    def cleanup_org(self, db: Session):
+        org = db.query(Organization).filter(Organization.slug == "tp-cleanup-test").first()
+        if not org:
+            org = Organization(name="Cleanup Test Org", slug="tp-cleanup-test")
+            db.add(org)
+            db.commit()
+            db.refresh(org)
+        return org
+
+    @pytest.fixture(scope="class")
+    def sample_vendor(self, db: Session, cleanup_org: Organization):
+        """A known demo vendor with no DSCSA identifiers."""
+        v = db.query(Vendor).filter(
+            Vendor.organization_id == cleanup_org.id,
+            Vendor.name == "Teva Pharmaceuticals"
+        ).first()
+        if not v:
+            v = Vendor(
+                organization_id=cleanup_org.id,
+                name="Teva Pharmaceuticals",
+                vendor_code="TEST-TEVA",
+                contact_email="contact@teva001.com",
+                data_source="demo",
+            )
+            db.add(v)
+            db.commit()
+            db.refresh(v)
+        return v
+
+    @pytest.fixture(scope="class")
+    def real_vendor(self, db: Session, cleanup_org: Organization):
+        """A real partner that has a GLN — must never be deleted."""
+        v = db.query(Vendor).filter(
+            Vendor.organization_id == cleanup_org.id,
+            Vendor.name == "AmerisourceBergen Real"
+        ).first()
+        if not v:
+            v = Vendor(
+                organization_id=cleanup_org.id,
+                name="AmerisourceBergen Real",
+                vendor_code="TEST-ABC",
+                gln="0123456789012",
+                contact_email="ops@amerisourcebergen.com",
+                data_source="user_created",
+            )
+            db.add(v)
+            db.commit()
+            db.refresh(v)
+        return v
+
+    def test_dry_run_does_not_delete(
+        self, db: Session, sample_vendor: Vendor, real_vendor: Vendor  # noqa: ARG002 – fixture dep
+    ):
+        import importlib.util, sys as _sys, os as _os
+        spec = importlib.util.spec_from_file_location(
+            "cleanup_sample_partners",
+            _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                          "scripts", "cleanup_sample_partners.py"),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        # Dry run — no deletion
+        mod.run(apply=False)
+
+        db.expire_all()
+        assert db.query(Vendor).filter(Vendor.id == sample_vendor.id).first() is not None, \
+            "Dry run must not delete rows"
+
+    def test_apply_removes_demo_row(
+        self, db: Session, sample_vendor: Vendor, real_vendor: Vendor  # noqa: ARG002 – fixture dep
+    ):
+        import importlib.util, sys as _sys, os as _os
+        spec = importlib.util.spec_from_file_location(
+            "cleanup_sample_partners",
+            _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                          "scripts", "cleanup_sample_partners.py"),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        mod.run(apply=True)
+
+        db.expire_all()
+        assert db.query(Vendor).filter(Vendor.id == sample_vendor.id).first() is None, \
+            "Demo row must be deleted with --apply"
+
+    def test_real_partner_with_gln_survives(self, db: Session, real_vendor: Vendor):
+        db.expire_all()
+        assert db.query(Vendor).filter(Vendor.id == real_vendor.id).first() is not None, \
+            "Real partner with GLN must never be deleted by cleanup script"

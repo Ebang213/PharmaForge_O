@@ -163,6 +163,8 @@ export interface TradingPartner {
     verification_status: string;
     last_verified_at?: string;
     missing_fields: string[];
+    /** Provenance: user_created | imported | legacy_vendor | demo | system */
+    data_source?: string;
     created_at: string;
     updated_at?: string;
 }

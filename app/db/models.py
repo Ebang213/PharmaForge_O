@@ -231,6 +231,8 @@ class Vendor(Base):
     partner_status = Column(String(50), default='active')  # active, pending_review, inactive
     verification_status = Column(String(50), default='not_verified')  # verified, incomplete, expired, not_verified
     last_verified_at = Column(DateTime(timezone=True))
+    # Provenance field (migration 008): user_created, imported, legacy_vendor, demo, system
+    data_source = Column(String(50), nullable=True, server_default='user_created')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
