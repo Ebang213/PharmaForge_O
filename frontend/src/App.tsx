@@ -7,7 +7,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { ENTERPRISE_FEATURES } from './lib/featureFlags';
 
 // Lazy-loaded pages (code-split at route level)
+const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Transactions = lazy(() => import('./pages/Transactions'));
 const TradingPartners = lazy(() => import('./pages/TradingPartners'));
@@ -154,18 +156,12 @@ export default function App() {
                 <AuthProvider>
                     <Suspense fallback={<PageLoader />}>
                         <Routes>
-                            {/* Public Route */}
+                            {/* Public Routes */}
+                            <Route path="/" element={<Landing />} />
                             <Route path="/login" element={<Login />} />
+                            <Route path="/register" element={<Register />} />
 
                             {/* MVP Primary Routes */}
-                            <Route path="/" element={
-                                <ProtectedRoute>
-                                    <MainLayout>
-                                        <Navigate to="/dashboard" replace />
-                                    </MainLayout>
-                                </ProtectedRoute>
-                            } />
-
                             <Route path="/dashboard" element={
                                 <ProtectedRoute>
                                     <MainLayout>
