@@ -121,6 +121,11 @@ class Organization(Base):
     name = Column(String(255), nullable=False)
     slug = Column(String(100), unique=True, nullable=False, index=True)
     settings = Column(JSON, default={})
+    # Pharmacy registration fields (migration 009) — nullable for
+    # backward compatibility with non-pharmacy organizations
+    pharmacy_name = Column(String(255), nullable=True)
+    state = Column(String(2), nullable=True)  # 2-letter US state code
+    employee_count = Column(Integer, nullable=True)  # FTE pharmacists + techs
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
