@@ -42,6 +42,10 @@ jobs:
       SECRET_KEY: test-secret-key-for-ci-minimum-32-chars-long-xxxxx
       DEBUG: "true"
       TESTING: "1"
+      # Default UPLOAD_DIR is /code/uploads (the Docker mount); the GitHub
+      # runner cannot create /code, so app startup dies with PermissionError
+      # in every test that enters the FastAPI lifespan. Use a writable path.
+      UPLOAD_DIR: /tmp/pharmaforge-uploads
 
     steps:
       - uses: actions/checkout@v4
