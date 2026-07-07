@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { dscsaApi, tradingPartnersApi, watchtowerApi } from '../lib/api';
+import { complianceApi, dscsaApi, tradingPartnersApi, watchtowerApi } from '../lib/api';
 import {
     CheckCircle, Circle, Upload, Building2, Bell, Calendar,
     AlertTriangle, FileCheck, Package, ArrowRight
 } from 'lucide-react';
-import type { EPCISUpload, TradingPartnerReadiness } from '../lib/types';
+import type { ComplianceReadiness, EPCISUpload, TradingPartnerReadiness } from '../lib/types';
 
 function getDaysUntil(targetDate: string): number {
     const now = new Date();
@@ -14,7 +14,16 @@ function getDaysUntil(targetDate: string): number {
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 }
 
+// Where to send the user to fix each failing readiness check
+const readinessCheckActions: Record<string, string> = {
+    trading_partner_license: '/trading-partners',
+    recent_epcis_upload: '/transactions',
+    latest_upload_valid: '/transactions',
+    audit_packet_generated: '/transactions',
+};
+
 export default function Dashboard() {
+    const [readiness, setReadiness] = useState<ComplianceReadiness | null>(null);
     const [partnerReadiness, setPartnerReadiness] = useState<TradingPartnerReadiness>({
         total_trading_partners: 0,
         verified_partners: 0,
@@ -31,12 +40,16 @@ export default function Dashboard() {
     }, []);
 
     const loadStats = async () => {
-        const [readinessResult, uploadsResult, alertsResult] = await Promise.allSettled([
+        const [complianceResult, readinessResult, uploadsResult, alertsResult] = await Promise.allSettled([
+            complianceApi.readiness(),
             tradingPartnersApi.readiness(),
             dscsaApi.epcisList(),
             watchtowerApi.summary(),
         ]);
 
+        if (complianceResult.status === 'fulfilled') {
+            setReadiness(complianceResult.value.data);
+        }
         if (readinessResult.status === 'fulfilled') {
             setPartnerReadiness(readinessResult.value.data);
         }
@@ -103,6 +116,69 @@ export default function Dashboard() {
                 <h1>Dashboard</h1>
                 <p>DSCSA compliance overview for your pharmacy</p>
             </div>
+
+            {/* Compliance Readiness Score */}
+            {readiness && (() => {
+                const failing = readiness.checks.filter(c => !c.passed);
+                const ringColor = readiness.score === 100
+                    ? 'var(--success)'
+                    : readiness.score >= 50 ? 'var(--warning)' : 'var(--danger)';
+                const circumference = 2 * Math.PI * 45;
+                return (
+                    <div className="card" style={{ marginBottom: 32, display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
+                            <svg width="120" height="120" viewBox="0 0 120 120">
+                                <circle
+                                    cx="60" cy="60" r="45" fill="none"
+                                    stroke="var(--bg-tertiary)" strokeWidth="10"
+                                />
+                                <circle
+                                    cx="60" cy="60" r="45" fill="none"
+                                    stroke={ringColor} strokeWidth="10" strokeLinecap="round"
+                                    strokeDasharray={circumference}
+                                    strokeDashoffset={circumference * (1 - readiness.score / 100)}
+                                    transform="rotate(-90 60 60)"
+                                    style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+                                />
+                            </svg>
+                            <div style={{
+                                position: 'absolute', inset: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 24, fontWeight: 700
+                            }}>
+                                {readiness.score}%
+                            </div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 260 }}>
+                            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>Compliance Readiness</h2>
+                            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                                {failing.length === 0
+                                    ? 'All readiness checks passed.'
+                                    : `${failing.length} item${failing.length > 1 ? 's' : ''} to complete:`}
+                            </p>
+                            {failing.map(check => (
+                                <div key={check.id} style={{
+                                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0',
+                                    borderTop: '1px solid var(--border-color)'
+                                }}>
+                                    <Circle size={16} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: 2 }} />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: 14 }}>{check.label}</div>
+                                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{check.detail}</div>
+                                    </div>
+                                    <Link to={readinessCheckActions[check.id] ?? '/dashboard'} style={{
+                                        fontSize: 12, color: 'var(--accent-primary)',
+                                        display: 'flex', alignItems: 'center', gap: 4,
+                                        textDecoration: 'none', whiteSpace: 'nowrap', marginTop: 2
+                                    }}>
+                                        Fix <ArrowRight size={12} />
+                                    </Link>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Metric Cards */}
             <div className="grid grid-4" style={{ marginBottom: 32 }}>

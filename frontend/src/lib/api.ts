@@ -301,6 +301,11 @@ export const tradingPartnersApi = {
     readiness: () => api.get('/api/trading-partners/readiness'),
 };
 
+// Compliance readiness API (pharmacy MVP)
+export const complianceApi = {
+    readiness: () => api.get('/api/compliance/readiness'),
+};
+
 // Vendors API
 export const vendorsApi = {
     getVendors: () => api.get('/api/vendors'),

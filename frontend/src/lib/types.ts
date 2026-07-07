@@ -176,6 +176,19 @@ export interface TradingPartnerReadiness {
     readiness_percentage: number;
 }
 
+// Compliance readiness (GET /api/compliance/readiness)
+export interface ComplianceReadinessCheck {
+    id: string;
+    label: string;
+    passed: boolean;
+    detail: string;
+}
+
+export interface ComplianceReadiness {
+    score: number;
+    checks: ComplianceReadinessCheck[];
+}
+
 // Vendor types
 export interface Vendor {
     id: number;

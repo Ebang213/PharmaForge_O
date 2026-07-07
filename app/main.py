@@ -88,6 +88,7 @@ from app.api.evidence import router as evidence_router
 from app.api.risk_findings import router as risk_findings_router
 from app.api.audit_packet import router as audit_packet_router
 from app.api.trading_partners import router as trading_partners_router
+from app.api.compliance import router as compliance_router
 
 app.include_router(auth_router)
 app.include_router(orgs_router)
@@ -103,6 +104,7 @@ app.include_router(admin_router)
 app.include_router(evidence_router)
 app.include_router(risk_findings_router)
 app.include_router(audit_packet_router)
+app.include_router(compliance_router)
 
 
 # Celery task status endpoint — poll for background task results
