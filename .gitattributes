@@ -1,0 +1,19 @@
+# Normalize line endings so checkouts behave the same on every OS.
+#
+# Shell scripts and Dockerfiles are copied into Linux Docker images
+# (e.g. entrypoint.sh -> /code/entrypoint.sh). With core.autocrlf=true
+# on Windows they would be materialized with CRLF, which breaks the
+# shebang ("exec /code/entrypoint.sh: no such file or directory").
+# Force LF for anything a Linux container executes.
+
+* text=auto
+
+*.sh text eol=lf
+*.py text eol=lf
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+
+# Windows-native scripts keep CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
