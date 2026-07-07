@@ -20,6 +20,17 @@ from app.core.config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
+# FDA small-dispenser exemption threshold: 25 or fewer full-time
+# pharmacists + pharmacy technicians (exemption ends November 27, 2026)
+SMALL_DISPENSER_MAX_EMPLOYEE_COUNT = 25
+
+
+def is_small_dispenser(employee_count: Optional[int]) -> Optional[bool]:
+    """Return small-dispenser eligibility, or None if the count is unknown."""
+    if employee_count is None:
+        return None
+    return employee_count <= SMALL_DISPENSER_MAX_EMPLOYEE_COUNT
+
 
 # ============= SCHEMAS =============
 
@@ -34,6 +45,12 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=1, max_length=255)
     organization_name: Optional[str] = Field(None, max_length=255)
     organization_slug: Optional[str] = Field(None, max_length=100)
+    # Pharmacy fields — optional for backward compatibility
+    pharmacy_name: Optional[str] = Field(None, max_length=255)
+    state: Optional[str] = Field(None, description="2-letter US state code")
+    employee_count: Optional[int] = Field(
+        None, ge=0, description="Full-time pharmacist + pharmacy technician count"
+    )
 
     @field_validator('password')
     @classmethod
@@ -42,6 +59,16 @@ class RegisterRequest(BaseModel):
             raise ValueError('Password must contain at least one letter')
         if not re.search(r'[0-9]', v):
             raise ValueError('Password must contain at least one number')
+        return v
+
+    @field_validator('state')
+    @classmethod
+    def validate_state(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip().upper()
+        if not re.fullmatch(r'[A-Z]{2}', v):
+            raise ValueError('state must be a 2-letter US state code')
         return v
 
 
@@ -169,9 +196,12 @@ async def register(
             detail="Email already registered",
         )
 
-    # Create organization if provided
-    if register_data.organization_name:
-        slug = register_data.organization_slug or register_data.organization_name.lower().replace(" ", "-")
+    # Create organization if provided (pharmacy_name doubles as the
+    # organization name for pharmacy self-registration)
+    org_name = register_data.organization_name or register_data.pharmacy_name
+    created_org = False
+    if org_name:
+        slug = register_data.organization_slug or org_name.lower().replace(" ", "-")
         existing_org = db.query(Organization).filter(Organization.slug == slug).first()
         if existing_org:
             raise HTTPException(
@@ -180,11 +210,15 @@ async def register(
             )
 
         org = Organization(
-            name=register_data.organization_name,
+            name=org_name,
             slug=slug,
+            pharmacy_name=register_data.pharmacy_name,
+            state=register_data.state,
+            employee_count=register_data.employee_count,
         )
         db.add(org)
         db.flush()
+        created_org = True
     else:
         # Use default organization or require org name
         org = db.query(Organization).first()
@@ -200,7 +234,7 @@ async def register(
         email=register_data.email,
         hashed_password=get_password_hash(register_data.password),
         full_name=register_data.full_name,
-        role=UserRole.OWNER.value if register_data.organization_name else UserRole.VIEWER.value,
+        role=UserRole.OWNER.value if created_org else UserRole.VIEWER.value,
         organization_id=org.id,
     )
     db.add(user)
@@ -240,6 +274,7 @@ async def register(
             "role": get_role_value(user.role),
             "organization_id": user.organization_id,
             "organization_name": org.name,
+            "small_dispenser": is_small_dispenser(register_data.employee_count),
         }
     )
 

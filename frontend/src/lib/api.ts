@@ -83,7 +83,10 @@ export const authApi = {
         email: string;
         password: string;
         full_name: string;
-        organization_name: string
+        organization_name?: string;
+        pharmacy_name?: string;
+        state?: string;
+        employee_count?: number;
     }) => api.post('/api/auth/register', data),
 
     me: () => api.get('/api/auth/me'),

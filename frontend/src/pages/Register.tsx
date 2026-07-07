@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { authApi } from '../lib/api';
-import { Shield, Mail, Lock, User, Building2, ArrowRight } from 'lucide-react';
+import { Shield, Mail, Lock, User, Building2, MapPin, Users, ArrowRight } from 'lucide-react';
 import './Login.css';
+
+const SMALL_DISPENSER_MAX = 25;
 
 export default function Register() {
     const { login } = useAuth();
@@ -14,9 +16,14 @@ export default function Register() {
     const [formData, setFormData] = useState({
         full_name: '',
         pharmacy_name: '',
+        state: '',
+        employee_count: '',
         email: '',
         password: '',
     });
+
+    const employeeCount = formData.employee_count === '' ? null : Number(formData.employee_count);
+    const isSmallDispenser = employeeCount === null ? null : employeeCount <= SMALL_DISPENSER_MAX;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -29,6 +36,9 @@ export default function Register() {
                 password: formData.password,
                 full_name: formData.full_name,
                 organization_name: formData.pharmacy_name,
+                pharmacy_name: formData.pharmacy_name,
+                state: formData.state || undefined,
+                employee_count: employeeCount ?? undefined,
             });
             login(response.data.access_token, response.data.user, response.data.refresh_token);
             navigate('/dashboard', { replace: true });
@@ -84,6 +94,40 @@ export default function Register() {
                             onChange={(e) => setFormData({ ...formData, pharmacy_name: e.target.value })}
                             required
                         />
+                    </div>
+
+                    <div className="form-group">
+                        <label><MapPin size={16} /> State</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. TX"
+                            value={formData.state}
+                            onChange={(e) => setFormData({ ...formData, state: e.target.value.toUpperCase().slice(0, 2) })}
+                            maxLength={2}
+                            pattern="[A-Za-z]{2}"
+                            title="2-letter state code"
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label><Users size={16} /> Employees (full-time pharmacists + technicians)</label>
+                        <input
+                            type="number"
+                            placeholder="e.g. 8"
+                            value={formData.employee_count}
+                            onChange={(e) => setFormData({ ...formData, employee_count: e.target.value })}
+                            min={0}
+                        />
+                        {isSmallDispenser === true && (
+                            <p style={{ fontSize: 13, color: 'var(--success)', marginTop: 8 }}>
+                                You qualify as a small dispenser. Your DSCSA exemption ends November 27, 2026.
+                            </p>
+                        )}
+                        {isSmallDispenser === false && (
+                            <p style={{ fontSize: 13, color: 'var(--warning)', marginTop: 8 }}>
+                                Your compliance deadline has already passed (November 27, 2025) — start now.
+                            </p>
+                        )}
                     </div>
 
                     <div className="form-group">
