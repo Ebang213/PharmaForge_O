@@ -543,7 +543,7 @@ class TestCleanupScript:
         import importlib.util, sys as _sys, os as _os
         spec = importlib.util.spec_from_file_location(
             "cleanup_sample_partners",
-            _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+            _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
                           "scripts", "cleanup_sample_partners.py"),
         )
         mod = importlib.util.module_from_spec(spec)
@@ -562,16 +562,17 @@ class TestCleanupScript:
         import importlib.util, sys as _sys, os as _os
         spec = importlib.util.spec_from_file_location(
             "cleanup_sample_partners",
-            _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+            _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
                           "scripts", "cleanup_sample_partners.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
 
+        sample_id = sample_vendor.id
         mod.run(apply=True)
 
         db.expire_all()
-        assert db.query(Vendor).filter(Vendor.id == sample_vendor.id).first() is None, \
+        assert db.query(Vendor).filter(Vendor.id == sample_id).first() is None, \
             "Demo row must be deleted with --apply"
 
     def test_real_partner_with_gln_survives(self, db: Session, real_vendor: Vendor):

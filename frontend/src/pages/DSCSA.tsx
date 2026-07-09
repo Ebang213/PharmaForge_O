@@ -99,7 +99,7 @@ export default function DSCSA() {
     return (
         <div className="fade-in">
             <div className="page-header">
-                <h1>DSCSA / EPCIS</h1>
+                <h1>Compliance</h1>
                 <p>Drug serialization validation and track-and-trace compliance</p>
             </div>
 

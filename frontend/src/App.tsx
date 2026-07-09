@@ -4,9 +4,12 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 // Components (loaded eagerly — small, always needed)
 import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
+import { ENTERPRISE_FEATURES } from './lib/featureFlags';
 
 // Lazy-loaded pages (code-split at route level)
+const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Transactions = lazy(() => import('./pages/Transactions'));
 const TradingPartners = lazy(() => import('./pages/TradingPartners'));
@@ -153,18 +156,12 @@ export default function App() {
                 <AuthProvider>
                     <Suspense fallback={<PageLoader />}>
                         <Routes>
-                            {/* Public Route */}
+                            {/* Public Routes */}
+                            <Route path="/" element={<Landing />} />
                             <Route path="/login" element={<Login />} />
+                            <Route path="/register" element={<Register />} />
 
                             {/* MVP Primary Routes */}
-                            <Route path="/" element={
-                                <ProtectedRoute>
-                                    <MainLayout>
-                                        <Navigate to="/dashboard" replace />
-                                    </MainLayout>
-                                </ProtectedRoute>
-                            } />
-
                             <Route path="/dashboard" element={
                                 <ProtectedRoute>
                                     <MainLayout>
@@ -213,27 +210,57 @@ export default function App() {
                                 </ProtectedRoute>
                             } />
 
-                            {/* Legacy Routes (hidden from nav, accessible via direct URL) */}
-                            <Route path="/mission-control" element={
-                                <ProtectedRoute>
-                                    <MainLayout>
-                                        <MissionControl />
-                                    </MainLayout>
-                                </ProtectedRoute>
-                            } />
+                            {/* Enterprise Routes — gated behind VITE_ENTERPRISE_FEATURES.
+                                Hidden (unreachable by URL) when the flag is unset; code stays. */}
+                            {ENTERPRISE_FEATURES && (
+                                <>
+                                    <Route path="/mission-control" element={
+                                        <ProtectedRoute>
+                                            <MainLayout>
+                                                <MissionControl />
+                                            </MainLayout>
+                                        </ProtectedRoute>
+                                    } />
 
+                                    <Route path="/watchtower" element={
+                                        <ProtectedRoute>
+                                            <MainLayout>
+                                                <Watchtower />
+                                            </MainLayout>
+                                        </ProtectedRoute>
+                                    } />
+
+                                    <Route path="/copilot" element={
+                                        <ProtectedRoute>
+                                            <MainLayout>
+                                                <Copilot />
+                                            </MainLayout>
+                                        </ProtectedRoute>
+                                    } />
+
+                                    <Route path="/war-council" element={
+                                        <ProtectedRoute>
+                                            <MainLayout>
+                                                <WarCouncil />
+                                            </MainLayout>
+                                        </ProtectedRoute>
+                                    } />
+
+                                    <Route path="/sourcing" element={
+                                        <ProtectedRoute>
+                                            <MainLayout>
+                                                <PlaceholderPage title="Sourcing" />
+                                            </MainLayout>
+                                        </ProtectedRoute>
+                                    } />
+                                </>
+                            )}
+
+                            {/* Legacy Routes (hidden from nav, accessible via direct URL) */}
                             <Route path="/workflow" element={
                                 <ProtectedRoute>
                                     <MainLayout>
                                         <Workflow />
-                                    </MainLayout>
-                                </ProtectedRoute>
-                            } />
-
-                            <Route path="/watchtower" element={
-                                <ProtectedRoute>
-                                    <MainLayout>
-                                        <Watchtower />
                                     </MainLayout>
                                 </ProtectedRoute>
                             } />
@@ -246,34 +273,10 @@ export default function App() {
                                 </ProtectedRoute>
                             } />
 
-                            <Route path="/copilot" element={
-                                <ProtectedRoute>
-                                    <MainLayout>
-                                        <Copilot />
-                                    </MainLayout>
-                                </ProtectedRoute>
-                            } />
-
-                            <Route path="/war-council" element={
-                                <ProtectedRoute>
-                                    <MainLayout>
-                                        <WarCouncil />
-                                    </MainLayout>
-                                </ProtectedRoute>
-                            } />
-
                             <Route path="/vendors" element={
                                 <ProtectedRoute>
                                     <MainLayout>
                                         <Vendors />
-                                    </MainLayout>
-                                </ProtectedRoute>
-                            } />
-
-                            <Route path="/sourcing" element={
-                                <ProtectedRoute>
-                                    <MainLayout>
-                                        <PlaceholderPage title="Sourcing" />
                                     </MainLayout>
                                 </ProtectedRoute>
                             } />

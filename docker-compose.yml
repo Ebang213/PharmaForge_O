@@ -155,6 +155,9 @@ services:
       - VITE_API_URL=
       # Proxy target for Vite dev server (used in vite.config.ts)
       - VITE_PROXY_TARGET=http://api:8000
+      # Enterprise surface (Mission Control, Copilot, War Council, Sourcing,
+      # Watchtower). Hidden by default for the pharmacy MVP.
+      - VITE_ENTERPRISE_FEATURES=${VITE_ENTERPRISE_FEATURES:-false}
     depends_on:
       - api
 

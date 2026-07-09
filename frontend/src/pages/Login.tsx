@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { authApi } from '../lib/api';
 import { Shield, Mail, Lock, ArrowRight } from 'lucide-react';
@@ -87,7 +87,7 @@ export default function Login() {
 
                 <div className="login-footer">
                     <p className="contact-admin">
-                        Need an account? Contact your system administrator.
+                        Need an account? <Link to="/register" style={{ color: 'var(--accent-primary)' }}>Register your pharmacy</Link>.
                     </p>
                 </div>
             </div>

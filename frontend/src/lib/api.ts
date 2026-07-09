@@ -83,7 +83,10 @@ export const authApi = {
         email: string;
         password: string;
         full_name: string;
-        organization_name: string
+        organization_name?: string;
+        pharmacy_name?: string;
+        state?: string;
+        employee_count?: number;
     }) => api.post('/api/auth/register', data),
 
     me: () => api.get('/api/auth/me'),
@@ -296,6 +299,11 @@ export const tradingPartnersApi = {
     delete: (id: number) => api.delete(`/api/trading-partners/${id}`),
 
     readiness: () => api.get('/api/trading-partners/readiness'),
+};
+
+// Compliance readiness API (pharmacy MVP)
+export const complianceApi = {
+    readiness: () => api.get('/api/compliance/readiness'),
 };
 
 // Vendors API
