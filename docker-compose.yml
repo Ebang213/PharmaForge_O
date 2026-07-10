@@ -67,6 +67,9 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - ADMIN_BOOTSTRAP_EMAIL=${ADMIN_BOOTSTRAP_EMAIL:-admin@acmepharma.com}
       - ADMIN_BOOTSTRAP_PASSWORD=${ADMIN_BOOTSTRAP_PASSWORD:-admin123456}
+      # Pharmacy self-registration is the MVP's core flow — enabled by
+      # default in dev. Production (docker-compose.prod.yml) defaults to off.
+      - ALLOW_PUBLIC_REGISTRATION=${ALLOW_PUBLIC_REGISTRATION:-true}
     depends_on:
       postgres:
         condition: service_healthy
