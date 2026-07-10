@@ -30,6 +30,14 @@ export default defineConfig(({ mode }) => {
         server: {
             port: 5173,
             host: true,
+            watch: {
+                // Docker bind mounts (especially on Windows hosts) don't
+                // deliver file-change events reliably; without polling the
+                // dev server keeps serving stale modules after host-side
+                // edits (e.g. "does not provide an export named ..." errors).
+                usePolling: true,
+                interval: 300,
+            },
             proxy: {
                 '/api': {
                     // Use VITE_PROXY_TARGET in Docker, or fallback to localhost for local dev
