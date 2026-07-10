@@ -187,6 +187,10 @@ export interface ComplianceReadinessCheck {
 export interface ComplianceReadiness {
     score: number;
     checks: ComplianceReadinessCheck[];
+    active_alert_count: number;
+    blocking_issue_count: number;
+    latest_upload_id: number | null;
+    latest_upload_status: string | null;
 }
 
 // Vendor types

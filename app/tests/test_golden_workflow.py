@@ -1461,6 +1461,110 @@ class TestWarCouncilOutputValidation:
             db_session.commit()
 
 
+# ============= PHARMACY DSCSA GOLDEN WORKFLOW (REAL API) =============
+
+class TestPharmacyGoldenWorkflowAPI:
+    """
+    Full pharmacy DSCSA golden workflow through the real HTTP API:
+    register org -> verified trading partner -> EPCIS upload -> validation
+    -> audit packet -> readiness 100 with zero active alerts.
+
+    Runs against the same database the app uses (PostgreSQL in the Docker
+    stack). Each run registers a fresh organization so state is isolated.
+    """
+
+    def test_pharmacy_golden_workflow_end_to_end(self):
+        from pathlib import Path
+        from fastapi.testclient import TestClient
+        from app.main import app
+
+        with TestClient(app) as client:
+            suffix = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+
+            # Step 1: register a pharmacy org (self-registration flow)
+            resp = client.post("/api/auth/register", json={
+                "email": f"gw-pharmacy-{suffix}@pharmaforgetests.com",
+                "password": "GoldenWorkflow123",
+                "full_name": "Golden Workflow Pharmacist",
+                "pharmacy_name": f"Golden Workflow Pharmacy {suffix}",
+                "state": "OH",
+                "employee_count": 5,
+            })
+            if resp.status_code == 403:
+                pytest.skip("Public registration disabled (ALLOW_PUBLIC_REGISTRATION=false)")
+            assert resp.status_code == 200, resp.text
+            headers = {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+            # Fresh org starts at zero readiness
+            resp = client.get("/api/compliance/readiness", headers=headers)
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["score"] == 0
+
+            # Step 2: add a verified trading partner
+            resp = client.post("/api/trading-partners", headers=headers, json={
+                "name": "Golden Workflow Wholesaler",
+                "partner_type": "WHOLESALE_DISTRIBUTOR",
+                "gln": "0614141000012",
+                "contact_email": "ops@golden-wholesaler.test",
+            })
+            assert resp.status_code == 201, resp.text
+            assert resp.json()["verification_status"] == "verified"
+
+            # Step 3: upload the sample EPCIS file. pharmacy_golden.json is
+            # fully commissioned (every EPC starts with an ADD event), so it
+            # validates clean — unlike valid.json, whose SSCC pallet EPC
+            # intentionally trips the chain-break detector.
+            sample_path = Path(__file__).resolve().parents[2] / "samples" / "epcis" / "pharmacy_golden.json"
+            assert sample_path.exists(), f"Missing sample file: {sample_path}"
+            with open(sample_path, "rb") as fh:
+                resp = client.post(
+                    "/api/dscsa/upload",
+                    headers=headers,
+                    files={"file": ("pharmacy_golden.json", fh, "application/json")},
+                )
+            assert resp.status_code == 200, resp.text
+            upload = resp.json()
+            upload_id = upload["id"]
+
+            # Step 4: confirm validation
+            assert upload["validation_status"] == "valid", upload
+            assert upload["chain_break_count"] == 0
+            assert upload["event_count"] > 0
+
+            # Readiness now 80: everything except the inspection packet.
+            # A valid upload alone must NOT satisfy the packet check.
+            resp = client.get("/api/compliance/readiness", headers=headers)
+            data = resp.json()
+            passed = {c["id"]: c["passed"] for c in data["checks"]}
+            assert data["score"] == 80, data
+            assert passed["audit_packet_generated"] is False
+            assert data["latest_upload_id"] == upload_id
+            assert data["latest_upload_status"] == "valid"
+
+            # Step 5: generate the audit packet
+            resp = client.get(
+                f"/api/dscsa/uploads/{upload_id}/audit-packet", headers=headers,
+            )
+            assert resp.status_code == 200, resp.text
+            packet = resp.json()
+            assert packet["upload"]["id"] == upload_id
+            actions = [e["action"] for e in packet["audit_log_entries"]]
+            assert "audit_packet_generated" in actions
+
+            # Step 6: readiness is 100 with zero active alerts
+            resp = client.get("/api/compliance/readiness", headers=headers)
+            data = resp.json()
+            assert data["score"] == 100, data
+            assert data["active_alert_count"] == 0
+            assert data["blocking_issue_count"] == 0
+            assert all(c["passed"] for c in data["checks"])
+
+            print(f"\n========== PHARMACY GOLDEN WORKFLOW PASSED ==========")
+            print(f"  Upload ID: {upload_id}")
+            print(f"  Readiness: {data['score']} | Alerts: {data['active_alert_count']}")
+            print(f"=====================================================\n")
+
+
 # ============= RUN TESTS =============
 
 if __name__ == "__main__":

@@ -12,7 +12,17 @@ A complete supply chain scenario in JSON format containing:
 - ObjectEvent: Shipping (OBSERVE)
 - ObjectEvent: Receiving (OBSERVE)
 
-**Expected Result:** VALID - All required fields present, proper EPC format
+**Expected Result:** CHAIN_BREAK - All required fields present, but the
+SSCC pallet EPC first appears in an OBSERVE shipping event without a
+commissioning (ADD) event, which the chain-break detector flags.
+
+### 1b. pharmacy_golden.json (JSON - EPCIS 2.0 format)
+The pharmacy golden-workflow scenario: every EPC is commissioned (ADD)
+before any OBSERVE event, timestamps are strictly increasing, and all
+recommended fields are present. Used by the golden workflow test
+(`test_golden_workflow.py::TestPharmacyGoldenWorkflowAPI`).
+
+**Expected Result:** VALID - zero issues, zero chain breaks
 
 ### 2. object_event.xml (XML - EPCIS 1.2 format)
 ObjectEvent examples demonstrating:

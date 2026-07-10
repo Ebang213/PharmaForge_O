@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { complianceApi, dscsaApi, tradingPartnersApi, watchtowerApi } from '../lib/api';
+import { complianceApi, dscsaApi, tradingPartnersApi } from '../lib/api';
 import {
     CheckCircle, Circle, Upload, Building2, Bell, Calendar,
     AlertTriangle, FileCheck, Package, ArrowRight
@@ -19,7 +19,16 @@ const readinessCheckActions: Record<string, string> = {
     trading_partner_license: '/trading-partners',
     recent_epcis_upload: '/transactions',
     latest_upload_valid: '/transactions',
+    chain_integrity: '/transactions',
     audit_packet_generated: '/transactions',
+};
+
+const readinessCheckActionLabels: Record<string, string> = {
+    trading_partner_license: 'Add Trading Partner',
+    recent_epcis_upload: 'Upload File',
+    latest_upload_valid: 'View Transactions',
+    chain_integrity: 'Review Issues',
+    audit_packet_generated: 'Generate Packet',
 };
 
 export default function Dashboard() {
@@ -31,7 +40,6 @@ export default function Dashboard() {
         readiness_percentage: 0,
     });
     const [uploads, setUploads] = useState<EPCISUpload[]>([]);
-    const [activeAlertCount, setActiveAlertCount] = useState(0);
     const [loading, setLoading] = useState(true);
     const daysUntilDeadline = getDaysUntil('2026-11-27');
 
@@ -40,11 +48,10 @@ export default function Dashboard() {
     }, []);
 
     const loadStats = async () => {
-        const [complianceResult, readinessResult, uploadsResult, alertsResult] = await Promise.allSettled([
+        const [complianceResult, readinessResult, uploadsResult] = await Promise.allSettled([
             complianceApi.readiness(),
             tradingPartnersApi.readiness(),
             dscsaApi.epcisList(),
-            watchtowerApi.summary(),
         ]);
 
         if (complianceResult.status === 'fulfilled') {
@@ -56,57 +63,15 @@ export default function Dashboard() {
         if (uploadsResult.status === 'fulfilled') {
             setUploads(uploadsResult.value.data ?? []);
         }
-        if (alertsResult.status === 'fulfilled') {
-            setActiveAlertCount(alertsResult.value.data.active_alerts ?? 0);
-        }
         setLoading(false);
     };
 
-    const latestUpload = uploads[0];
-    const validStatuses = ['valid', 'success'];
-    const latestValid =
-        uploads.length > 0 &&
-        validStatuses.includes(latestUpload?.validation_status as string ?? '');
-    const hasChainBreaks = uploads.some(u => (u.chain_break_count ?? 0) > 0);
-    const auditPacketAvailable = uploads.some(u =>
-        validStatuses.includes(u.validation_status as string)
-    );
-
-    const checklistItems = [
-        {
-            label: 'At least one verified trading partner',
-            met: partnerReadiness.verified_partners > 0,
-            action: '/trading-partners',
-            actionLabel: partnerReadiness.total_trading_partners === 0 ? 'Add Trading Partner' : 'Complete Partner Info',
-        },
-        {
-            label: 'EPCIS transaction file uploaded',
-            met: uploads.length > 0,
-            action: '/transactions',
-            actionLabel: 'Upload File',
-        },
-        {
-            label: 'Latest EPCIS upload is valid',
-            met: uploads.length > 0 && latestValid,
-            action: '/transactions',
-            actionLabel: 'View Transactions',
-        },
-        {
-            label: 'No unresolved chain breaks',
-            met: uploads.length > 0 && !hasChainBreaks,
-            action: '/transactions',
-            actionLabel: 'Review Issues',
-        },
-        {
-            label: 'Inspection packet available',
-            met: auditPacketAvailable,
-            action: '/transactions',
-            actionLabel: 'Generate Packet',
-        },
-    ];
-
-    const metCount = checklistItems.filter(i => i.met).length;
-    const readinessPercent = Math.round((metCount / checklistItems.length) * 100);
+    // Active DSCSA alerts come from the compliance readiness API — the
+    // single backend source of truth. Enterprise Watchtower alerts are
+    // intentionally not counted here.
+    const activeAlertCount = readiness?.active_alert_count ?? 0;
+    const checks = readiness?.checks ?? [];
+    const passedCount = checks.filter(c => c.passed).length;
 
     if (loading) return <div className="loading-container"><div className="spinner" /></div>;
 
@@ -229,66 +194,80 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-2" style={{ gap: 24 }}>
-                {/* DSCSA Readiness Checklist */}
+                {/* DSCSA Readiness Checklist — rendered entirely from the
+                    backend readiness response; nothing is recomputed here */}
                 <div className="card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                         <h2 style={{ fontSize: 18, fontWeight: 600 }}>DSCSA Readiness Checklist</h2>
-                        <div style={{
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            padding: '6px 14px', borderRadius: 20,
-                            background: readinessPercent === 100 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                            color: readinessPercent === 100 ? '#10b981' : '#f59e0b',
-                            fontWeight: 700, fontSize: 14
-                        }}>
-                            {readinessPercent}% Ready
-                        </div>
-                    </div>
-
-                    <div style={{ marginBottom: 16 }}>
-                        <div style={{ height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                        {readiness && (
                             <div style={{
-                                width: `${readinessPercent}%`, height: '100%', borderRadius: 4,
-                                background: readinessPercent === 100
-                                    ? 'var(--success)'
-                                    : readinessPercent >= 60
-                                        ? 'var(--warning)'
-                                        : 'var(--accent-primary)',
-                                transition: 'width 0.5s ease'
-                            }} />
-                        </div>
-                        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            {metCount} of {checklistItems.length} operational checks passed.
-                            This reflects operational readiness, not a legal compliance guarantee.
-                        </p>
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                padding: '6px 14px', borderRadius: 20,
+                                background: readiness.score === 100 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                color: readiness.score === 100 ? '#10b981' : '#f59e0b',
+                                fontWeight: 700, fontSize: 14
+                            }}>
+                                {readiness.score}% Ready
+                            </div>
+                        )}
                     </div>
 
-                    {checklistItems.map((item, idx) => (
-                        <div key={idx} style={{
-                            display: 'flex', alignItems: 'center', gap: 12,
-                            padding: '12px 0',
-                            borderBottom: idx < checklistItems.length - 1 ? '1px solid var(--border-color)' : 'none'
-                        }}>
-                            {item.met
-                                ? <CheckCircle size={20} style={{ color: 'var(--success)', flexShrink: 0 }} />
-                                : <Circle size={20} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                            }
-                            <span style={{
-                                flex: 1, fontSize: 14,
-                                color: item.met ? 'var(--text-primary)' : 'var(--text-secondary)'
-                            }}>
-                                {item.label}
-                            </span>
-                            {!item.met && (
-                                <Link to={item.action} style={{
-                                    fontSize: 12, color: 'var(--accent-primary)',
-                                    display: 'flex', alignItems: 'center', gap: 4,
-                                    textDecoration: 'none', whiteSpace: 'nowrap'
+                    {readiness ? (
+                        <>
+                            <div style={{ marginBottom: 16 }}>
+                                <div style={{ height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                                    <div style={{
+                                        width: `${readiness.score}%`, height: '100%', borderRadius: 4,
+                                        background: readiness.score === 100
+                                            ? 'var(--success)'
+                                            : readiness.score >= 60
+                                                ? 'var(--warning)'
+                                                : 'var(--accent-primary)',
+                                        transition: 'width 0.5s ease'
+                                    }} />
+                                </div>
+                                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                    {passedCount} of {checks.length} operational checks passed.
+                                    Operational readiness — not a legal compliance guarantee.
+                                </p>
+                            </div>
+
+                            {checks.map((check, idx) => (
+                                <div key={check.id} style={{
+                                    display: 'flex', alignItems: 'center', gap: 12,
+                                    padding: '12px 0',
+                                    borderBottom: idx < checks.length - 1 ? '1px solid var(--border-color)' : 'none'
                                 }}>
-                                    {item.actionLabel} <ArrowRight size={12} />
-                                </Link>
-                            )}
-                        </div>
-                    ))}
+                                    {check.passed
+                                        ? <CheckCircle size={20} style={{ color: 'var(--success)', flexShrink: 0 }} />
+                                        : <Circle size={20} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                                    }
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{
+                                            fontSize: 14,
+                                            color: check.passed ? 'var(--text-primary)' : 'var(--text-secondary)'
+                                        }}>
+                                            {check.label}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{check.detail}</div>
+                                    </div>
+                                    {!check.passed && (
+                                        <Link to={readinessCheckActions[check.id] ?? '/dashboard'} style={{
+                                            fontSize: 12, color: 'var(--accent-primary)',
+                                            display: 'flex', alignItems: 'center', gap: 4,
+                                            textDecoration: 'none', whiteSpace: 'nowrap'
+                                        }}>
+                                            {readinessCheckActionLabels[check.id] ?? 'Fix'} <ArrowRight size={12} />
+                                        </Link>
+                                    )}
+                                </div>
+                            ))}
+                        </>
+                    ) : (
+                        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                            Readiness data is unavailable right now. Refresh to try again.
+                        </p>
+                    )}
                 </div>
 
                 {/* Right column */}

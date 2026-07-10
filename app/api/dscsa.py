@@ -383,8 +383,37 @@ async def download_audit_packet(
     
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
-    
-    # Fetch audit log entries for this upload
+
+    generated_at = datetime.now(timezone.utc)
+
+    # Record this packet generation. The compliance readiness packet check
+    # only passes when such an event exists for the upload, so it must be
+    # committed before the packet is returned. Every download writes its own
+    # entry — repeated downloads stay auditable, and readiness treats any
+    # number of generation events as a single passing condition.
+    generation_log = AuditLog(
+        user_id=int(user_context["sub"]),
+        organization_id=user_context["org_id"],
+        action="audit_packet_generated",
+        entity_type="epcis_upload",
+        entity_id=upload.id,
+        details={
+            "filename": upload.filename,
+            "file_hash": upload.file_hash,
+            "validation_status": _enum_val(upload.validation_status),
+            "event_count": upload.event_count or 0,
+            "issue_count": len(upload.issues),
+            "chain_break_count": upload.chain_break_count or 0,
+            "generated_at": generated_at.isoformat(),
+            "requested_by_user_id": int(user_context["sub"]),
+            "organization_id": user_context["org_id"],
+        },
+    )
+    db.add(generation_log)
+    db.commit()
+
+    # Fetch audit log entries for this upload (includes the generation
+    # event committed above, so the packet documents its own creation)
     audit_log_entries = db.query(AuditLog).filter(
         AuditLog.entity_type == "epcis_upload",
         AuditLog.entity_id == upload.id,
@@ -392,7 +421,7 @@ async def download_audit_packet(
     ).order_by(AuditLog.timestamp).all()
 
     audit_packet = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": generated_at.isoformat(),
         "upload": {
             "id": upload.id,
             "filename": upload.filename,
